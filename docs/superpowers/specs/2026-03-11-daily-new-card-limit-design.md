@@ -28,12 +28,12 @@ Gate how many never-reviewed ("new") cards appear in each day's review queue. Ca
 1. **Review cards** (due and `last_review IS NOT NULL`): always included, no limit.
 2. **Count already introduced today**: `SELECT COUNT(DISTINCT kanji) FROM reviews WHERE kanji IN (SELECT kanji FROM reviews GROUP BY kanji HAVING MIN(reviewed_at) >= ?)` with today-start as param.
 3. **Remaining new slots**: `max(0, NEW_CARDS_PER_DAY - already_introduced_today)`.
-4. **New cards**: select up to `remaining_slots` cards where `due <= now AND last_review IS NULL`, ordered by `wk_level ASC, kanji ASC` (via join to `characters`) so lower-level kanji are introduced first, with deterministic tie-breaking.
+4. **New cards**: select up to `remaining_slots` cards where `due <= now AND last_review IS NULL`. No particular ordering required.
 5. **Return**: review cards + new cards combined.
 
 `due_count()` returns a `tuple[int, int]` of `(total_due, new_due)` so the home page can display both. It follows the same gating logic as `get_due_kanji()`.
 
-**Session ordering:** `start_session()` shuffles all due kanji together. New cards are not presented in level order within a session — the level ordering only determines *which* new cards are selected when the daily limit applies. This is intentional; sessions should feel varied.
+**Session ordering:** `start_session()` continues to shuffle all due kanji together.
 
 ## UI Change
 
