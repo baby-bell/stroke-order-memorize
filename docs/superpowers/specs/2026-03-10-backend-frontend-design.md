@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS characters (
 
 CREATE TABLE IF NOT EXISTS cards (
     kanji       TEXT    NOT NULL PRIMARY KEY REFERENCES characters(kanji),
-    state       INT     NOT NULL DEFAULT 0 CHECK (state IN (0, 1, 2, 3)),  -- 0=New 1=Learning 2=Review 3=Relearning
+    state       INT     NOT NULL DEFAULT 1 CHECK (state IN (1, 2, 3)),  -- 1=Learning 2=Review 3=Relearning
     step        INT,                       -- NULL when card is in Review state (state=2)
     stability   REAL,                      -- NULL for unreviewed cards; FSRS initialises on first review
     difficulty  REAL,                      -- NULL for unreviewed cards; FSRS initialises on first review
@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS reviews (
 );
 ```
 
-`db.py` runs these statements on module import so the schema is always present on first run. `stability`, `difficulty`, and `step` are nullable because FSRS initialises them on the first review; storing `0.0` would cause the scheduler to skip initialisation. When reconstructing an `fsrs.Card` from a DB row, `None` must be passed for these fields if the stored value is `NULL`.
+`db.py` runs these statements on module import so the schema is always present on first run. `stability`, `difficulty`, and `step` are nullable because FSRS initialises them on the first review; storing `0.0` would cause the scheduler to skip initialisation. When reconstructing an `fsrs.Card` from a DB row, `None` must be passed for these fields if the stored value is `NULL`. New cards start in `State.Learning` (1) with `NULL` stability and difficulty; `last_review IS NULL` indicates the card has never been reviewed. Note: the `fsrs` library v6.x has no `New` state — `Learning` (1) is the initial state.
 
 ## Routes
 
