@@ -86,6 +86,8 @@ def get_card(kanji: str) -> Card:
         "SELECT * FROM cards WHERE kanji = ?",
         (kanji,),
     ).fetchone()
+    if row is None:
+        raise ValueError(f"No card found for kanji: {kanji!r}")
     return Card(
         state=State(row["state"]),
         step=row["step"],
@@ -101,7 +103,7 @@ def get_card(kanji: str) -> Card:
 
 
 def update_card(kanji: str, card: Card) -> None:
-    _conn.execute(
+    cursor = _conn.execute(
         """
         UPDATE cards
         SET state = ?, step = ?, stability = ?, difficulty = ?, due = ?, last_review = ?
@@ -117,6 +119,8 @@ def update_card(kanji: str, card: Card) -> None:
             kanji,
         ),
     )
+    if cursor.rowcount == 0:
+        raise ValueError(f"No card found for kanji: {kanji!r}")
     _conn.commit()
 
 
