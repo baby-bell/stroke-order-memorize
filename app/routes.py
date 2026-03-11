@@ -29,9 +29,9 @@ def _queue(session_id: str | None) -> list[str]:
 
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    count = db.due_count()
+    total, new = db.due_count()
     return templates.TemplateResponse(
-        request, "home.html", {"due_count": count}
+        request, "home.html", {"due_count": total, "new_count": new}
     )
 
 

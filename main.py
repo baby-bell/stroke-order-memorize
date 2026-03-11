@@ -14,6 +14,8 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     db.init(os.getenv("DB_PATH", "stroke-memorize.db"))
+    new_cards = os.getenv("NEW_CARDS_PER_DAY", "20")
+    db.set_new_cards_per_day(int(new_cards))
     yield
 
 

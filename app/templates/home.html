@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<p>{{ due_count }} card{{ "s" if due_count != 1 else "" }} due for review.</p>
+<p>{{ due_count }} card{{ "s" if due_count != 1 else "" }} due for review{% if new_count %} ({{ new_count }} new){% endif %}.</p>
 <div id="sync-status"></div>
 <form hx-post="/sync" hx-target="#sync-status" hx-swap="innerHTML">
   <button type="submit">Sync WaniKani</button>

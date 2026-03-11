@@ -97,3 +97,13 @@ async def test_session_review_last_card_triggers_hx_redirect(client):
 async def test_session_done_returns_200(client):
     resp = await client.get("/session/done")
     assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_home_shows_new_count(client):
+    db.set_new_cards_per_day(1)
+    for kanji in ["一", "二", "三"]:
+        db.upsert_character(kanji, 1, now_iso())
+        db.insert_card_if_new(kanji)
+    resp = await client.get("/")
+    assert "1 new" in resp.text

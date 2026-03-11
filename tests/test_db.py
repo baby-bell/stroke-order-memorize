@@ -128,4 +128,93 @@ class TestDueCount:
         for kanji in ["一", "二"]:
             db.upsert_character(kanji, 1, now_iso())
             db.insert_card_if_new(kanji)
-        assert db.due_count() == 2
+        total, new = db.due_count()
+        assert total == 2
+        assert new == 2
+
+
+class TestNewCardLimit:
+    def test_new_cards_limited_to_daily_max(self):
+        db.set_new_cards_per_day(2)
+        for kanji in ["一", "二", "三", "四", "五"]:
+            db.upsert_character(kanji, 1, now_iso())
+            db.insert_card_if_new(kanji)
+        due = db.get_due_kanji()
+        assert len(due) == 2
+
+    def test_review_cards_always_included(self):
+        db.set_new_cards_per_day(0)
+        db.upsert_character("一", 1, now_iso())
+        db.insert_card_if_new("一")
+        # Simulate a reviewed card: set last_review so it's not "new"
+        db._conn.execute(
+            "UPDATE cards SET last_review = ? WHERE kanji = '一'",
+            (now_iso(),),
+        )
+        db._conn.commit()
+        due = db.get_due_kanji()
+        assert "一" in due
+
+    def test_zero_limit_excludes_all_new_cards(self):
+        db.set_new_cards_per_day(0)
+        db.upsert_character("一", 1, now_iso())
+        db.insert_card_if_new("一")
+        due = db.get_due_kanji()
+        assert due == []
+
+    def test_introduced_today_counts_toward_limit(self):
+        db.set_new_cards_per_day(2)
+        for kanji in ["一", "二", "三"]:
+            db.upsert_character(kanji, 1, now_iso())
+            db.insert_card_if_new(kanji)
+        # Simulate reviewing "一" today (its first-ever review)
+        db.insert_review("一", 3, now_iso())
+        db._conn.execute(
+            "UPDATE cards SET last_review = ? WHERE kanji = '一'",
+            (now_iso(),),
+        )
+        db._conn.commit()
+        # "一" was introduced today, so only 1 new slot remains
+        due = db.get_due_kanji()
+        new_in_due = [k for k in due if k != "一"]
+        assert len(new_in_due) == 1
+
+    def test_limit_higher_than_available_new_cards(self):
+        db.set_new_cards_per_day(100)
+        for kanji in ["一", "二"]:
+            db.upsert_character(kanji, 1, now_iso())
+            db.insert_card_if_new(kanji)
+        due = db.get_due_kanji()
+        assert len(due) == 2
+
+
+class TestDueCountWithLimit:
+    def test_returns_tuple_of_total_and_new(self):
+        db.set_new_cards_per_day(20)
+        db.upsert_character("一", 1, now_iso())
+        db.insert_card_if_new("一")
+        result = db.due_count()
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+
+    def test_counts_respect_new_card_limit(self):
+        db.set_new_cards_per_day(1)
+        for kanji in ["一", "二", "三"]:
+            db.upsert_character(kanji, 1, now_iso())
+            db.insert_card_if_new(kanji)
+        total, new = db.due_count()
+        assert total == 1
+        assert new == 1
+
+    def test_counts_include_review_cards(self):
+        db.set_new_cards_per_day(0)
+        db.upsert_character("一", 1, now_iso())
+        db.insert_card_if_new("一")
+        db._conn.execute(
+            "UPDATE cards SET last_review = ? WHERE kanji = '一'",
+            (now_iso(),),
+        )
+        db._conn.commit()
+        total, new = db.due_count()
+        assert total == 1
+        assert new == 0
