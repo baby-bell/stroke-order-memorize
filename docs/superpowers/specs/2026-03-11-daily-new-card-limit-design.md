@@ -12,6 +12,7 @@ Gate how many never-reviewed ("new") cards appear in each day's review queue. Ca
 
 - Environment variable: `NEW_CARDS_PER_DAY` (integer, default `20`)
 - Read once at app startup in `main.py`, stored as module-level in `app/db.py` (or passed through)
+- Validation at startup: must be a non-negative integer. Invalid values (non-integer, negative) raise `ValueError` and prevent app from starting.
 
 ## Definitions
 
@@ -27,10 +28,12 @@ Gate how many never-reviewed ("new") cards appear in each day's review queue. Ca
 1. **Review cards** (due and `last_review IS NOT NULL`): always included, no limit.
 2. **Count already introduced today**: `SELECT COUNT(DISTINCT kanji) FROM reviews WHERE kanji IN (SELECT kanji FROM reviews GROUP BY kanji HAVING MIN(reviewed_at) >= ?)` with today-start as param.
 3. **Remaining new slots**: `max(0, NEW_CARDS_PER_DAY - already_introduced_today)`.
-4. **New cards**: select up to `remaining_slots` cards where `due <= now AND last_review IS NULL`, ordered by `wk_level ASC` (via join to `characters`) so lower-level kanji are introduced first.
+4. **New cards**: select up to `remaining_slots` cards where `due <= now AND last_review IS NULL`, ordered by `wk_level ASC, kanji ASC` (via join to `characters`) so lower-level kanji are introduced first, with deterministic tie-breaking.
 5. **Return**: review cards + new cards combined.
 
-`due_count()` follows the same logic so the home page count matches what the session will actually serve.
+`due_count()` returns a `tuple[int, int]` of `(total_due, new_due)` so the home page can display both. It follows the same gating logic as `get_due_kanji()`.
+
+**Session ordering:** `start_session()` shuffles all due kanji together. New cards are not presented in level order within a session — the level ordering only determines *which* new cards are selected when the daily limit applies. This is intentional; sessions should feel varied.
 
 ## UI Change
 
@@ -57,3 +60,5 @@ To:
 - `NEW_CARDS_PER_DAY=0`: no new cards introduced, only reviews.
 - All cards are new (first day): returns up to the daily limit.
 - User reviews a new card, then starts another session same day: that card is now "introduced today" and counts toward the limit, not re-counted as new.
+- Limit higher than available new cards: all available new cards are returned.
+- Limit changed between app restarts mid-day: works naturally since "introduced today" is computed from reviews, independent of the config value.
