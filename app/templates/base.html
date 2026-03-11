@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>stroke-memorize</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <script src="/static/strokes.js" defer></script>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
+    .kanji-display { font-size: 8rem; text-align: center; margin: 2rem 0; line-height: 1; }
+    .rating-buttons { display: flex; gap: 1rem; justify-content: center; margin-top: 1.5rem; }
+    .rating-buttons button { padding: 0.5rem 1.5rem; font-size: 1rem; cursor: pointer; }
+    .rating-buttons button:disabled { opacity: 0.4; cursor: default; }
+    button { padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer; }
+    svg { display: block; margin: 0 auto; }
+  </style>
+</head>
+<body>
+  <h1><a href="/" style="text-decoration:none;color:inherit">stroke-memorize</a></h1>
+  {% block content %}{% endblock %}
+</body>
+</html>

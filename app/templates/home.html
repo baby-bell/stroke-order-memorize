@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<p>{{ due_count }} card{{ "s" if due_count != 1 else "" }} due for review.</p>
+<div id="sync-status"></div>
+<form hx-post="/sync" hx-target="#sync-status" hx-swap="innerHTML">
+  <button type="submit">Sync WaniKani</button>
+</form>
+{% if due_count > 0 %}
+<p><a href="/session"><button>Start Session</button></a></p>
+{% endif %}
+{% endblock %}
