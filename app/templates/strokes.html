@@ -1,0 +1,14 @@
+<svg viewBox="0 0 109 109" width="300" height="300"
+     style="fill:none;stroke:#000;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;">
+  {% for path_d, label, x, y in strokes %}
+  <path class="stroke" data-stroke="{{ loop.index0 }}"
+        d="{{ path_d }}"
+        style="opacity:0"/>
+  <text class="stroke-label" data-stroke="{{ loop.index0 }}"
+        x="{{ x }}" y="{{ y }}"
+        style="display:none;font-size:8px;fill:#808080">{{ label }}</text>
+  {% endfor %}
+</svg>
+<p>Stroke <span id="stroke-count">0</span> of {{ strokes|length }}</p>
+<button id="next-stroke-btn" onclick="nextStroke()">Next Stroke</button>
+<script>initStrokes({{ strokes|length }});</script>

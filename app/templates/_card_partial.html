@@ -1,0 +1,28 @@
+<div class="kanji-display">{{ kanji }}</div>
+<div id="stroke-area">
+  <button hx-get="/session/strokes"
+          hx-target="#stroke-area"
+          hx-swap="innerHTML">Show Strokes</button>
+</div>
+<div class="rating-buttons">
+  <button class="rating-btn" disabled
+          hx-post="/session/review"
+          hx-target="#card-body"
+          hx-swap="innerHTML"
+          hx-vals='{"rating": "1"}'>Again</button>
+  <button class="rating-btn" disabled
+          hx-post="/session/review"
+          hx-target="#card-body"
+          hx-swap="innerHTML"
+          hx-vals='{"rating": "2"}'>Hard</button>
+  <button class="rating-btn" disabled
+          hx-post="/session/review"
+          hx-target="#card-body"
+          hx-swap="innerHTML"
+          hx-vals='{"rating": "3"}'>Good</button>
+  <button class="rating-btn" disabled
+          hx-post="/session/review"
+          hx-target="#card-body"
+          hx-swap="innerHTML"
+          hx-vals='{"rating": "4"}'>Easy</button>
+</div>
