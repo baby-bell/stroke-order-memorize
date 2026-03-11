@@ -87,10 +87,10 @@ No settings route. The user edits `.env` directly.
 
 HTMX swap targets:
 - `POST /sync` → `hx-target="#sync-status"`, `hx-swap="innerHTML"`
-- `GET /session/strokes` → `hx-target="#card-body"`, `hx-swap="innerHTML"`
+- `GET /session/strokes` → `hx-target="#stroke-area"`, `hx-swap="innerHTML"` (a div inside `_card_partial.html`)
 - `POST /session/review` → `hx-target="#card-body"`, `hx-swap="innerHTML"`
 
-The `#card-body` div lives inside `base.html` and is the shared swap target for both the initial card content and the stroke reveal. `_card_partial.html` is the reusable fragment rendered by both `GET /session/card` (via `card.html`) and `POST /session/review` directly.
+`GET /session/strokes` targets `#stroke-area` (not `#card-body`) so that the rating buttons in `_card_partial.html` remain in the DOM and can be enabled by `initStrokes()` in JS. `POST /session/review` targets `#card-body` to replace the whole card with the next one. `_card_partial.html` is the reusable fragment rendered by both `GET /session/card` (via `card.html`) and `POST /session/review` directly.
 
 ## Session State
 
@@ -102,7 +102,7 @@ Session state (ordered queue of due kanji strings, current index) lives in a ser
 2. `POST /sync` — fetches the user's learned kanji from WaniKani (see WaniKani Client section), upserts into `characters`, creates a `cards` row (with defaults) for any new kanji. Returns an HTML fragment updating `#sync-status`.
 3. `GET /session` — queries `cards WHERE due <= now()`, shuffles, stores list in session. If empty, redirects to `/session/done`. Otherwise redirects to `/session/card`.
 4. `GET /session/card` — renders the full page with `_card_partial.html` embedded: kanji displayed prominently, "Show Strokes" button (`hx-get="/session/strokes" hx-target="#card-body"`), rating buttons (Again / Hard / Good / Easy) present but `disabled`.
-5. `GET /session/strokes` — returns `strokes.html` partial which swaps into `#card-body`: SVG with all stroke paths hidden (`opacity:0`). On load, JS enables the rating buttons.
+5. `GET /session/strokes` — returns `strokes.html` partial which swaps into `#stroke-area` (a div inside `_card_partial.html`): SVG with all stroke paths hidden (`opacity:0`). On load, JS enables the rating buttons. The rating buttons remain in the DOM because they are outside `#stroke-area`.
 6. User steps through strokes via "Next Stroke" button. JS reveals paths one at a time.
 7. `POST /session/review` — converts `rating` form field to `fsrs.Rating(int(rating))`, calls `fsrs.Scheduler().review_card(card, rating)`, writes updated card back to `cards`, appends row to `reviews`. Returns next `_card_partial.html` as HTMX partial, or redirects to `/session/done`.
 
