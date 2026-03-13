@@ -37,6 +37,19 @@ CREATE TABLE IF NOT EXISTS reviews (
     rating      INT     NOT NULL CHECK (rating IN (1, 2, 3, 4)),
     reviewed_at TEXT    NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS sync_meta (
+    endpoint        TEXT NOT NULL PRIMARY KEY,
+    synced_at       TEXT NOT NULL,
+    etag            TEXT,
+    last_modified   TEXT
+);
+
+CREATE TABLE IF NOT EXISTS subject_cache (
+    id          INTEGER NOT NULL PRIMARY KEY,
+    characters  TEXT NOT NULL,
+    level       INTEGER NOT NULL
+);
 """
 
 
@@ -178,3 +191,57 @@ def insert_review(kanji: str, rating: int, reviewed_at: str) -> None:
         (kanji, rating, reviewed_at),
     )
     _conn.commit()
+
+
+def get_sync_meta(endpoint: str) -> dict | None:
+    row = _conn.execute(
+        "SELECT synced_at, etag, last_modified FROM sync_meta WHERE endpoint = ?",
+        (endpoint,),
+    ).fetchone()
+    if row is None:
+        return None
+    return {"synced_at": row["synced_at"], "etag": row["etag"], "last_modified": row["last_modified"]}
+
+
+def set_sync_meta(
+    endpoint: str,
+    synced_at: str,
+    etag: str | None = None,
+    last_modified: str | None = None,
+) -> None:
+    _conn.execute(
+        """
+        INSERT INTO sync_meta (endpoint, synced_at, etag, last_modified)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(endpoint) DO UPDATE SET
+            synced_at     = excluded.synced_at,
+            etag          = excluded.etag,
+            last_modified = excluded.last_modified
+        """,
+        (endpoint, synced_at, etag, last_modified),
+    )
+    _conn.commit()
+
+
+def get_cached_subjects() -> dict[int, tuple[str, int]]:
+    rows = _conn.execute("SELECT id, characters, level FROM subject_cache").fetchall()
+    return {row["id"]: (row["characters"], row["level"]) for row in rows}
+
+
+def upsert_cached_subjects(subjects: dict[int, tuple[str, int]]) -> None:
+    _conn.executemany(
+        """
+        INSERT INTO subject_cache (id, characters, level)
+        VALUES (?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            characters = excluded.characters,
+            level      = excluded.level
+        """,
+        [(sid, chars, level) for sid, (chars, level) in subjects.items()],
+    )
+    _conn.commit()
+
+
+def has_cached_subjects() -> bool:
+    row = _conn.execute("SELECT 1 FROM subject_cache LIMIT 1").fetchone()
+    return row is not None

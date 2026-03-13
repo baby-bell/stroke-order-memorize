@@ -14,7 +14,7 @@ class TestSchema:
             "SELECT name FROM sqlite_master WHERE type='table'"
         )
         tables = {row[0] for row in cursor}
-        assert tables == {"characters", "cards", "reviews"}
+        assert tables == {"characters", "cards", "reviews", "sync_meta", "subject_cache"}
 
 
 class TestUpsertCharacter:
@@ -218,3 +218,63 @@ class TestDueCountWithLimit:
         total, new = db.due_count()
         assert total == 1
         assert new == 0
+
+
+class TestSyncMeta:
+    def test_get_sync_meta_returns_none_when_absent(self):
+        assert db.get_sync_meta("subjects") is None
+
+    def test_set_and_get_sync_meta(self):
+        db.set_sync_meta("subjects", "2024-01-01T00:00:00+00:00", etag='"abc"', last_modified="Wed, 01 Jan 2025 00:00:00 GMT")
+        meta = db.get_sync_meta("subjects")
+        assert meta is not None
+        assert meta["synced_at"] == "2024-01-01T00:00:00+00:00"
+        assert meta["etag"] == '"abc"'
+        assert meta["last_modified"] == "Wed, 01 Jan 2025 00:00:00 GMT"
+
+    def test_set_sync_meta_without_etag(self):
+        db.set_sync_meta("assignments", "2024-06-01T00:00:00+00:00")
+        meta = db.get_sync_meta("assignments")
+        assert meta is not None
+        assert meta["etag"] is None
+        assert meta["last_modified"] is None
+
+    def test_set_sync_meta_overwrites_existing(self):
+        db.set_sync_meta("subjects", "2024-01-01T00:00:00+00:00", etag='"old"')
+        db.set_sync_meta("subjects", "2025-01-01T00:00:00+00:00", etag='"new"')
+        meta = db.get_sync_meta("subjects")
+        assert meta["synced_at"] == "2025-01-01T00:00:00+00:00"
+        assert meta["etag"] == '"new"'
+
+    def test_different_endpoints_stored_independently(self):
+        db.set_sync_meta("subjects", "2024-01-01T00:00:00+00:00", etag='"s1"')
+        db.set_sync_meta("assignments", "2024-06-01T00:00:00+00:00", etag='"a1"')
+        assert db.get_sync_meta("subjects")["etag"] == '"s1"'
+        assert db.get_sync_meta("assignments")["etag"] == '"a1"'
+
+
+class TestSubjectCache:
+    def test_has_cached_subjects_false_when_empty(self):
+        assert db.has_cached_subjects() is False
+
+    def test_upsert_and_get_cached_subjects(self):
+        subjects = {440: ("一", 1), 441: ("二", 1), 500: ("山", 3)}
+        db.upsert_cached_subjects(subjects)
+        result = db.get_cached_subjects()
+        assert result == subjects
+
+    def test_has_cached_subjects_true_after_upsert(self):
+        db.upsert_cached_subjects({440: ("一", 1)})
+        assert db.has_cached_subjects() is True
+
+    def test_upsert_updates_existing_subjects(self):
+        db.upsert_cached_subjects({440: ("一", 1)})
+        db.upsert_cached_subjects({440: ("一", 2)})  # level changed
+        result = db.get_cached_subjects()
+        assert result[440] == ("一", 2)
+
+    def test_upsert_merges_with_existing(self):
+        db.upsert_cached_subjects({440: ("一", 1)})
+        db.upsert_cached_subjects({441: ("二", 1)})
+        result = db.get_cached_subjects()
+        assert 440 in result and 441 in result

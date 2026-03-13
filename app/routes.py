@@ -43,7 +43,10 @@ async def do_sync(request: Request):
     try:
         async with httpx.AsyncClient(
             base_url="https://api.wanikani.com",
-            headers={"Authorization": f"Bearer {api_key}"},
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Wanikani-Revision": "20170710",
+            },
         ) as client:
             synced = await sync(client)
         return HTMLResponse(f"<p>Synced {len(synced)} kanji.</p>")
