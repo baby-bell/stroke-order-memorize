@@ -1,4 +1,4 @@
-from app.core import select_due_cards
+from app.core import select_due_cards, compute_due_count
 
 
 class TestSelectDueCards:
@@ -74,3 +74,55 @@ class TestSelectDueCards:
             daily_limit=3,
         )
         assert result == []
+
+
+class TestComputeDueCount:
+    def test_basic_counts(self):
+        total, new = compute_due_count(
+            review_count=3,
+            new_available=5,
+            new_today_count=0,
+            daily_limit=20,
+        )
+        assert total == 8
+        assert new == 5
+
+    def test_caps_new_cards(self):
+        total, new = compute_due_count(
+            review_count=2,
+            new_available=10,
+            new_today_count=0,
+            daily_limit=3,
+        )
+        assert total == 5
+        assert new == 3
+
+    def test_subtracts_already_introduced(self):
+        total, new = compute_due_count(
+            review_count=0,
+            new_available=5,
+            new_today_count=2,
+            daily_limit=3,
+        )
+        assert total == 1
+        assert new == 1
+
+    def test_zero_limit(self):
+        total, new = compute_due_count(
+            review_count=1,
+            new_available=5,
+            new_today_count=0,
+            daily_limit=0,
+        )
+        assert total == 1
+        assert new == 0
+
+    def test_today_count_exceeding_limit(self):
+        total, new = compute_due_count(
+            review_count=2,
+            new_available=5,
+            new_today_count=10,
+            daily_limit=3,
+        )
+        assert total == 2
+        assert new == 0

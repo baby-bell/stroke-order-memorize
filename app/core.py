@@ -10,3 +10,15 @@ def select_due_cards(
     """Select which cards to study: all review cards + new cards up to daily cap."""
     remaining_slots = max(0, daily_limit - new_today_count)
     return review_kanji + new_kanji[:remaining_slots]
+
+
+def compute_due_count(
+    review_count: int,
+    new_available: int,
+    new_today_count: int,
+    daily_limit: int,
+) -> tuple[int, int]:
+    """Compute (total_due, new_due) given raw counts and daily cap."""
+    remaining_slots = max(0, daily_limit - new_today_count)
+    new_count = min(new_available, remaining_slots)
+    return (review_count + new_count, new_count)
