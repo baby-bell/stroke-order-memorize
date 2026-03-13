@@ -12,7 +12,7 @@ from fsrs import Rating, Scheduler
 
 import app.db as db
 from app.strokes import parse_strokes
-from app.wanikani import sync
+from app.wanikani import fetch_subjects, fetch_passed_assignments
 
 templates = Jinja2Templates(directory="app/templates")
 router = APIRouter()
@@ -48,7 +48,36 @@ async def do_sync(request: Request):
                 "Wanikani-Revision": "20170710",
             },
         ) as client:
-            synced = await sync(client)
+            now = datetime.now(timezone.utc).isoformat()
+
+            subjects_meta = db.get_sync_meta("subjects")
+            level_map, new_subjects_meta = await fetch_subjects(client, subjects_meta)
+            if level_map is None:
+                level_map = db.get_cached_subjects()
+            else:
+                db.upsert_cached_subjects(level_map)
+                level_map = db.get_cached_subjects()  # re-read full merged cache
+                if new_subjects_meta:
+                    db.set_sync_meta("subjects", now, **new_subjects_meta)
+
+            assignments_meta = db.get_sync_meta("assignments")
+            passed_ids, new_assignments_meta = await fetch_passed_assignments(
+                client, assignments_meta
+            )
+            if passed_ids is None:
+                return HTMLResponse("<p>Synced 0 kanji.</p>")
+            if new_assignments_meta:
+                db.set_sync_meta("assignments", now, **new_assignments_meta)
+
+            synced: list[tuple[str, int]] = []
+            for subject_id in passed_ids:
+                if subject_id not in level_map:
+                    continue
+                kanji, level = level_map[subject_id]
+                db.upsert_character(kanji, level, now)
+                db.insert_card_if_new(kanji)
+                synced.append((kanji, level))
+
         return HTMLResponse(f"<p>Synced {len(synced)} kanji.</p>")
     except httpx.HTTPStatusError as exc:
         return HTMLResponse(f"<p>Sync error: HTTP {exc.response.status_code}</p>")

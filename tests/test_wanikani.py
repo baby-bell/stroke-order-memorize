@@ -9,7 +9,8 @@ from app.wanikani import (
     fetch_user,
     fetch_kanji_level_map,
     fetch_passed_kanji,
-    sync,
+    fetch_subjects,
+    fetch_passed_assignments,
     _request_with_retry,
 )
 
@@ -136,207 +137,63 @@ async def test_fetch_passed_kanji_appends_updated_after(wk_client):
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_sync_upserts_characters_and_creates_cards(wk_client):
-    respx.get(f"{BASE}/v2/subjects?types=kanji").mock(
-        return_value=httpx.Response(200, json=_SUBJECTS_PAGE)
-    )
-    respx.get(f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true").mock(
-        return_value=httpx.Response(200, json=_ASSIGNMENTS_PAGE)
-    )
-    synced = await sync(wk_client)
-    assert synced == [("一", 1)]
-    char_row = db._conn.execute(
-        "SELECT wk_level FROM characters WHERE kanji = '一'"
-    ).fetchone()
-    assert char_row["wk_level"] == 1
-    card_row = db._conn.execute(
-        "SELECT kanji FROM cards WHERE kanji = '一'"
-    ).fetchone()
-    assert card_row is not None
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_sync_does_not_overwrite_existing_card_state(wk_client):
-    db.upsert_character("一", 1, "2024-01-01T00:00:00+00:00")
-    db.insert_card_if_new("一")
-    db._conn.execute("UPDATE cards SET stability = 7.7 WHERE kanji = '一'")
-    db._conn.commit()
-
-    respx.get(f"{BASE}/v2/subjects?types=kanji").mock(
-        return_value=httpx.Response(200, json=_SUBJECTS_PAGE)
-    )
-    respx.get(f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true").mock(
-        return_value=httpx.Response(200, json=_ASSIGNMENTS_PAGE)
-    )
-    await sync(wk_client)
-    row = db._conn.execute(
-        "SELECT stability FROM cards WHERE kanji = '一'"
-    ).fetchone()
-    assert row["stability"] == 7.7  # unchanged
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_sync_stores_sync_meta_after_first_sync(wk_client):
+async def test_fetch_subjects_returns_level_map(wk_client):
     respx.get(f"{BASE}/v2/subjects?types=kanji").mock(
         return_value=httpx.Response(
             200,
-            headers={"ETag": '"subjects-etag"', "Last-Modified": "Mon, 01 Jan 2024 00:00:00 GMT"},
+            headers={"ETag": '"s-etag"', "Last-Modified": "Mon, 01 Jan 2024 00:00:00 GMT"},
             json=_SUBJECTS_PAGE,
         )
     )
-    respx.get(f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true").mock(
-        return_value=httpx.Response(
-            200,
-            headers={"ETag": '"assignments-etag"'},
-            json=_ASSIGNMENTS_PAGE,
-        )
-    )
-    await sync(wk_client)
-
-    subjects_meta = db.get_sync_meta("subjects")
-    assert subjects_meta is not None
-    assert subjects_meta["etag"] == '"subjects-etag"'
-    assert subjects_meta["last_modified"] == "Mon, 01 Jan 2024 00:00:00 GMT"
-
-    assignments_meta = db.get_sync_meta("assignments")
-    assert assignments_meta is not None
-    assert assignments_meta["etag"] == '"assignments-etag"'
+    level_map, meta = await fetch_subjects(wk_client)
+    assert level_map == {440: ("一", 1)}
+    assert meta["etag"] == '"s-etag"'
+    assert meta["last_modified"] == "Mon, 01 Jan 2024 00:00:00 GMT"
 
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_sync_populates_subject_cache(wk_client):
-    respx.get(f"{BASE}/v2/subjects?types=kanji").mock(
-        return_value=httpx.Response(200, json=_SUBJECTS_PAGE)
-    )
-    respx.get(f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true").mock(
-        return_value=httpx.Response(200, json=_ASSIGNMENTS_PAGE)
-    )
-    await sync(wk_client)
-    assert db.has_cached_subjects()
-    assert db.get_cached_subjects() == {440: ("一", 1)}
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_sync_uses_updated_after_on_second_call(wk_client):
-    """Second sync appends updated_after from stored sync_meta to both URLs."""
-    prior_ts = "2024-01-01T00:00:00+00:00"
-    db.set_sync_meta("subjects", prior_ts, etag='"old-subjects"')
-    db.set_sync_meta("assignments", prior_ts, etag='"old-assignments"')
-    db.upsert_cached_subjects({440: ("一", 1)})
-
-    subjects_route = respx.get(
-        f"{BASE}/v2/subjects?types=kanji&updated_after={prior_ts}"
-    ).mock(return_value=httpx.Response(200, json={"pages": {"next_url": None}, "data": []}))
-    assignments_route = respx.get(
-        f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true&updated_after={prior_ts}"
-    ).mock(return_value=httpx.Response(200, json=_ASSIGNMENTS_PAGE))
-
-    await sync(wk_client)
-
-    assert subjects_route.called
-    assert assignments_route.called
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_sync_sends_conditional_headers_when_etag_stored(wk_client):
-    """sync() sends If-None-Match when etag is in sync_meta."""
-    prior_ts = "2024-01-01T00:00:00+00:00"
-    db.set_sync_meta("subjects", prior_ts, etag='"my-etag"')
-    db.set_sync_meta("assignments", prior_ts)
-    db.upsert_cached_subjects({440: ("一", 1)})
-
-    subjects_route = respx.get(
-        f"{BASE}/v2/subjects?types=kanji&updated_after={prior_ts}"
-    ).mock(return_value=httpx.Response(200, json={"pages": {"next_url": None}, "data": []}))
+async def test_fetch_subjects_returns_none_on_304(wk_client):
+    prior = {"synced_at": "2024-01-01T00:00:00+00:00", "etag": '"old"', "last_modified": None}
     respx.get(
-        f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true&updated_after={prior_ts}"
-    ).mock(return_value=httpx.Response(200, json=_ASSIGNMENTS_PAGE))
+        f"{BASE}/v2/subjects?types=kanji&updated_after={prior['synced_at']}"
+    ).mock(return_value=httpx.Response(304))
+    level_map, meta = await fetch_subjects(wk_client, sync_meta=prior)
+    assert level_map is None
+    assert meta is None
 
-    await sync(wk_client)
 
-    request = subjects_route.calls[0].request
+@respx.mock
+@pytest.mark.asyncio
+async def test_fetch_subjects_sends_conditional_headers(wk_client):
+    prior = {
+        "synced_at": "2024-01-01T00:00:00+00:00",
+        "etag": '"my-etag"',
+        "last_modified": "Mon, 01 Jan 2024 00:00:00 GMT",
+    }
+    route = respx.get(
+        f"{BASE}/v2/subjects?types=kanji&updated_after={prior['synced_at']}"
+    ).mock(return_value=httpx.Response(200, json=_SUBJECTS_PAGE))
+    await fetch_subjects(wk_client, sync_meta=prior)
+    request = route.calls[0].request
     assert request.headers.get("if-none-match") == '"my-etag"'
+    assert request.headers.get("if-modified-since") == "Mon, 01 Jan 2024 00:00:00 GMT"
 
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_sync_sends_if_modified_since_when_last_modified_stored(wk_client):
-    prior_ts = "2024-01-01T00:00:00+00:00"
-    lm = "Mon, 01 Jan 2024 00:00:00 GMT"
-    db.set_sync_meta("subjects", prior_ts, last_modified=lm)
-    db.set_sync_meta("assignments", prior_ts)
-    db.upsert_cached_subjects({440: ("一", 1)})
-
-    subjects_route = respx.get(
-        f"{BASE}/v2/subjects?types=kanji&updated_after={prior_ts}"
+async def test_fetch_subjects_appends_updated_after(wk_client):
+    prior = {"synced_at": "2024-01-01T00:00:00+00:00", "etag": None, "last_modified": None}
+    route = respx.get(
+        f"{BASE}/v2/subjects?types=kanji&updated_after={prior['synced_at']}"
     ).mock(return_value=httpx.Response(200, json={"pages": {"next_url": None}, "data": []}))
-    respx.get(
-        f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true&updated_after={prior_ts}"
-    ).mock(return_value=httpx.Response(200, json=_ASSIGNMENTS_PAGE))
-
-    await sync(wk_client)
-
-    request = subjects_route.calls[0].request
-    assert request.headers.get("if-modified-since") == lm
+    await fetch_subjects(wk_client, sync_meta=prior)
+    assert route.called
 
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_sync_304_for_subjects_loads_from_cache(wk_client):
-    """When subjects endpoint returns 304, sync() uses subject_cache."""
-    prior_ts = "2024-01-01T00:00:00+00:00"
-    db.set_sync_meta("subjects", prior_ts, etag='"subjects-etag"')
-    db.set_sync_meta("assignments", prior_ts)
-    db.upsert_cached_subjects({440: ("一", 1)})
-
-    respx.get(
-        f"{BASE}/v2/subjects?types=kanji&updated_after={prior_ts}"
-    ).mock(return_value=httpx.Response(304))
-    respx.get(
-        f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true&updated_after={prior_ts}"
-    ).mock(return_value=httpx.Response(200, json=_ASSIGNMENTS_PAGE))
-
-    synced = await sync(wk_client)
-    assert synced == [("一", 1)]
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_sync_304_for_assignments_returns_empty(wk_client):
-    """When assignments endpoint returns 304, sync() skips processing and returns []."""
-    prior_ts = "2024-01-01T00:00:00+00:00"
-    db.set_sync_meta("subjects", prior_ts, etag='"subjects-etag"')
-    db.set_sync_meta("assignments", prior_ts, etag='"assignments-etag"')
-    db.upsert_cached_subjects({440: ("一", 1)})
-
-    respx.get(
-        f"{BASE}/v2/subjects?types=kanji&updated_after={prior_ts}"
-    ).mock(return_value=httpx.Response(304))
-    respx.get(
-        f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true&updated_after={prior_ts}"
-    ).mock(return_value=httpx.Response(304))
-
-    synced = await sync(wk_client)
-    assert synced == []
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_sync_full_round_trip_second_sync_uses_cache(wk_client):
-    """First sync populates cache; second sync hits 304 and uses it."""
-    # First sync: full fetch
-    respx.get(f"{BASE}/v2/subjects?types=kanji").mock(
-        return_value=httpx.Response(
-            200,
-            headers={"ETag": '"s-etag"'},
-            json=_SUBJECTS_PAGE,
-        )
-    )
+async def test_fetch_passed_assignments_returns_ids(wk_client):
     respx.get(f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true").mock(
         return_value=httpx.Response(
             200,
@@ -344,21 +201,38 @@ async def test_sync_full_round_trip_second_sync_uses_cache(wk_client):
             json=_ASSIGNMENTS_PAGE,
         )
     )
-    synced1 = await sync(wk_client)
-    assert synced1 == [("一", 1)]
-    assert db.has_cached_subjects()
+    ids, meta = await fetch_passed_assignments(wk_client)
+    assert ids == [440]
+    assert meta["etag"] == '"a-etag"'
 
-    # Second sync: 304 for both endpoints
-    prior_ts = db.get_sync_meta("subjects")["synced_at"]
-    respx.get(
-        f"{BASE}/v2/subjects?types=kanji&updated_after={prior_ts}"
-    ).mock(return_value=httpx.Response(304))
-    respx.get(
-        f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true&updated_after={prior_ts}"
-    ).mock(return_value=httpx.Response(304))
 
-    synced2 = await sync(wk_client)
-    assert synced2 == []
+@respx.mock
+@pytest.mark.asyncio
+async def test_fetch_passed_assignments_returns_none_on_304(wk_client):
+    prior = {"synced_at": "2024-01-01T00:00:00+00:00", "etag": '"old"', "last_modified": None}
+    respx.get(
+        f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true&updated_after={prior['synced_at']}"
+    ).mock(return_value=httpx.Response(304))
+    ids, meta = await fetch_passed_assignments(wk_client, sync_meta=prior)
+    assert ids is None
+    assert meta is None
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_fetch_passed_assignments_sends_conditional_headers(wk_client):
+    prior = {
+        "synced_at": "2024-01-01T00:00:00+00:00",
+        "etag": '"a-etag"',
+        "last_modified": "Wed, 01 Jan 2025 00:00:00 GMT",
+    }
+    route = respx.get(
+        f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true&updated_after={prior['synced_at']}"
+    ).mock(return_value=httpx.Response(200, json=_ASSIGNMENTS_PAGE))
+    await fetch_passed_assignments(wk_client, sync_meta=prior)
+    request = route.calls[0].request
+    assert request.headers.get("if-none-match") == '"a-etag"'
+    assert request.headers.get("if-modified-since") == "Wed, 01 Jan 2025 00:00:00 GMT"
 
 
 @pytest.mark.asyncio
