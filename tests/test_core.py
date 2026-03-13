@@ -1,4 +1,4 @@
-from app.core import select_due_cards, compute_due_count
+from app.core import select_due_cards, compute_due_count, process_sync_results
 
 
 class TestSelectDueCards:
@@ -126,3 +126,35 @@ class TestComputeDueCount:
         )
         assert total == 2
         assert new == 0
+
+
+class TestProcessSyncResults:
+    def test_matches_passed_ids_to_level_map(self):
+        level_map = {440: ("一", 1), 441: ("二", 1)}
+        result = process_sync_results(
+            passed_ids=[440, 441],
+            level_map=level_map,
+        )
+        assert result == [("一", 1), ("二", 1)]
+
+    def test_skips_unknown_subject_ids(self):
+        level_map = {440: ("一", 1)}
+        result = process_sync_results(
+            passed_ids=[440, 999],
+            level_map=level_map,
+        )
+        assert result == [("一", 1)]
+
+    def test_empty_passed_ids(self):
+        level_map = {440: ("一", 1)}
+        result = process_sync_results(passed_ids=[], level_map=level_map)
+        assert result == []
+
+    def test_empty_level_map(self):
+        result = process_sync_results(passed_ids=[440], level_map={})
+        assert result == []
+
+    def test_duplicate_passed_ids_produces_duplicates(self):
+        level_map = {440: ("一", 1)}
+        result = process_sync_results(passed_ids=[440, 440], level_map=level_map)
+        assert result == [("一", 1), ("一", 1)]

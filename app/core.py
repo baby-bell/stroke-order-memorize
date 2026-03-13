@@ -22,3 +22,18 @@ def compute_due_count(
     remaining_slots = max(0, daily_limit - new_today_count)
     new_count = min(new_available, remaining_slots)
     return (review_count + new_count, new_count)
+
+
+def process_sync_results(
+    passed_ids: list[int],
+    level_map: dict[int, tuple[str, int]],
+) -> list[tuple[str, int]]:
+    """Filter passed assignment IDs against the subject level map.
+
+    Returns [(kanji, level), ...] for IDs found in level_map.
+    """
+    return [
+        level_map[sid]
+        for sid in passed_ids
+        if sid in level_map
+    ]
