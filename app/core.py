@@ -1,5 +1,7 @@
 """Functional core — pure business logic with no I/O."""
 
+from fsrs import Card, Rating, Scheduler
+
 
 def select_due_cards(
     review_kanji: list[str],
@@ -37,3 +39,12 @@ def process_sync_results(
         for sid in passed_ids
         if sid in level_map
     ]
+
+
+def schedule_review(card: Card, rating: int) -> Card:
+    """Apply an FSRS review and return the updated card.
+
+    rating must be 1-4 (Again, Hard, Good, Easy). Raises ValueError otherwise.
+    """
+    updated_card, _ = Scheduler().review_card(card, Rating(rating))
+    return updated_card

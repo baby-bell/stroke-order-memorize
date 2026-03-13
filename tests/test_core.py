@@ -1,4 +1,4 @@
-from app.core import select_due_cards, compute_due_count, process_sync_results
+from app.core import select_due_cards, compute_due_count, process_sync_results, schedule_review
 
 
 class TestSelectDueCards:
@@ -158,3 +158,30 @@ class TestProcessSyncResults:
         level_map = {440: ("一", 1)}
         result = process_sync_results(passed_ids=[440, 440], level_map=level_map)
         assert result == [("一", 1), ("一", 1)]
+
+
+from fsrs import Card, State
+
+
+class TestScheduleReview:
+    def test_returns_updated_card(self):
+        card = Card()  # default new card
+        updated = schedule_review(card, rating=3)
+        assert updated.last_review is not None
+        assert updated.stability is not None
+
+    def test_good_rating_sets_future_due(self):
+        card = Card()
+        updated = schedule_review(card, rating=3)
+        assert updated.due > card.due
+
+    def test_again_rating_keeps_learning(self):
+        card = Card()
+        updated = schedule_review(card, rating=1)
+        assert updated.state == State.Learning
+
+    def test_invalid_rating_raises(self):
+        import pytest
+        card = Card()
+        with pytest.raises(ValueError):
+            schedule_review(card, rating=0)
