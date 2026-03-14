@@ -1,9 +1,40 @@
 import asyncio
+import time
+from collections.abc import Callable, Awaitable
 from datetime import datetime, timezone
 
 import httpx
 
 _WANIKANI_BASE = "https://api.wanikani.com"
+
+
+def make_client(
+    api_key: str,
+    clock: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+) -> httpx.AsyncClient:
+    """Create a WaniKani API client with 1 RPS rate limiting."""
+    lock = asyncio.Lock()
+    last_request_time = [0.0]
+
+    async def _rate_limit_hook(request: httpx.Request) -> None:
+        async with lock:
+            now = clock()
+            elapsed = now - last_request_time[0]
+            if elapsed < 1.0:
+                await sleep(1.0 - elapsed)
+                last_request_time[0] = clock()
+            else:
+                last_request_time[0] = now
+
+    return httpx.AsyncClient(
+        base_url=_WANIKANI_BASE,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Wanikani-Revision": "20170710",
+        },
+        event_hooks={"request": [_rate_limit_hook]},
+    )
 
 
 async def _request_with_retry(

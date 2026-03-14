@@ -9,6 +9,7 @@ from app.wanikani import (
     fetch_subjects,
     fetch_passed_assignments,
     _request_with_retry,
+    make_client,
 )
 
 BASE = "https://api.wanikani.com"
@@ -184,3 +185,22 @@ async def test_request_with_retry_returns_none_on_304(wk_client):
         respx.get(f"{BASE}/v2/user").mock(return_value=httpx.Response(304))
         result = await _request_with_retry(wk_client, f"{BASE}/v2/user")
     assert result is None
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_rate_limiter_enforces_one_rps():
+    """make_client sleeps to enforce >= 1s between requests."""
+    respx.get(f"{BASE}/v2/user").mock(
+        return_value=httpx.Response(200, json={"data": {"username": "u", "level": 1}})
+    )
+    clock_values = iter([100.0, 100.3, 101.3])
+    sleep_args = []
+
+    async def fake_sleep(duration):
+        sleep_args.append(duration)
+
+    async with make_client("fake-key", clock=lambda: next(clock_values), sleep=fake_sleep) as client:
+        await fetch_user(client)
+        await fetch_user(client)
+    assert sleep_args == [pytest.approx(0.7)]
