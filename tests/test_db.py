@@ -197,18 +197,11 @@ class TestSyncMeta:
 
 
 class TestSubjectCache:
-    def test_has_cached_subjects_false_when_empty(self):
-        assert db.has_cached_subjects() is False
-
     def test_upsert_and_get_cached_subjects(self):
         subjects = {440: ("一", 1), 441: ("二", 1), 500: ("山", 3)}
         db.upsert_cached_subjects(subjects)
         result = db.get_cached_subjects()
         assert result == subjects
-
-    def test_has_cached_subjects_true_after_upsert(self):
-        db.upsert_cached_subjects({440: ("一", 1)})
-        assert db.has_cached_subjects() is True
 
     def test_upsert_updates_existing_subjects(self):
         db.upsert_cached_subjects({440: ("一", 1)})

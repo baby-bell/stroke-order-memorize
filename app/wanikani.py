@@ -68,33 +68,6 @@ async def fetch_user(client: httpx.AsyncClient) -> dict:
     return resp.json()["data"]
 
 
-async def fetch_kanji_level_map(
-    client: httpx.AsyncClient,
-    updated_after: str | None = None,
-) -> dict[int, tuple[str, int]]:
-    """Return {subject_id: (character, level)} for all kanji subjects."""
-    url = f"{_WANIKANI_BASE}/v2/subjects?types=kanji"
-    if updated_after:
-        url += f"&updated_after={updated_after}"
-    items = await _paginate(client, url)
-    return {
-        item["id"]: (item["data"]["characters"], item["data"]["level"])
-        for item in items
-    }
-
-
-async def fetch_passed_kanji(
-    client: httpx.AsyncClient,
-    updated_after: str | None = None,
-) -> list[int]:
-    """Return list of subject_ids for all passed kanji assignments."""
-    url = f"{_WANIKANI_BASE}/v2/assignments?subject_type=kanji&passed_at=true"
-    if updated_after:
-        url += f"&updated_after={updated_after}"
-    items = await _paginate(client, url)
-    return [item["data"]["subject_id"] for item in items]
-
-
 async def fetch_subjects(
     client: httpx.AsyncClient,
     sync_meta: dict | None = None,

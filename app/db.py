@@ -227,6 +227,3 @@ def upsert_cached_subjects(subjects: dict[int, tuple[str, int]]) -> None:
     _conn.commit()
 
 
-def has_cached_subjects() -> bool:
-    row = _conn.execute("SELECT 1 FROM subject_cache LIMIT 1").fetchone()
-    return row is not None

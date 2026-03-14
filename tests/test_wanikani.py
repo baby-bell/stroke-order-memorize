@@ -4,11 +4,8 @@ import pytest
 import respx
 import httpx
 from datetime import datetime, timezone
-import app.db as db
 from app.wanikani import (
     fetch_user,
-    fetch_kanji_level_map,
-    fetch_passed_kanji,
     fetch_subjects,
     fetch_passed_assignments,
     _request_with_retry,
@@ -45,94 +42,6 @@ async def test_fetch_user(wk_client):
     result = await fetch_user(wk_client)
     assert result["username"] == "testuser"
     assert result["level"] == 5
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_fetch_kanji_level_map_single_page(wk_client):
-    respx.get(f"{BASE}/v2/subjects?types=kanji").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "pages": {"next_url": None},
-                "data": [
-                    {"id": 440, "data": {"characters": "一", "level": 1}},
-                    {"id": 441, "data": {"characters": "二", "level": 1}},
-                ],
-            },
-        )
-    )
-    result = await fetch_kanji_level_map(wk_client)
-    assert result == {440: ("一", 1), 441: ("二", 1)}
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_fetch_kanji_level_map_follows_pagination(wk_client):
-    page2_url = f"{BASE}/v2/subjects?page_after_id=440"
-    respx.get(f"{BASE}/v2/subjects?types=kanji").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "pages": {"next_url": page2_url},
-                "data": [{"id": 440, "data": {"characters": "一", "level": 1}}],
-            },
-        )
-    )
-    respx.get(page2_url).mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "pages": {"next_url": None},
-                "data": [{"id": 441, "data": {"characters": "二", "level": 1}}],
-            },
-        )
-    )
-    result = await fetch_kanji_level_map(wk_client)
-    assert 440 in result and 441 in result
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_fetch_kanji_level_map_appends_updated_after(wk_client):
-    ts = "2024-01-01T00:00:00+00:00"
-    respx.get(f"{BASE}/v2/subjects?types=kanji&updated_after={ts}").mock(
-        return_value=httpx.Response(200, json={"pages": {"next_url": None}, "data": []})
-    )
-    result = await fetch_kanji_level_map(wk_client, updated_after=ts)
-    assert result == {}
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_fetch_passed_kanji(wk_client):
-    respx.get(f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "pages": {"next_url": None},
-                "data": [
-                    {"data": {"subject_id": 440}},
-                    {"data": {"subject_id": 441}},
-                ],
-            },
-        )
-    )
-    result = await fetch_passed_kanji(wk_client)
-    assert result == [440, 441]
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_fetch_passed_kanji_appends_updated_after(wk_client):
-    ts = "2024-06-01T00:00:00+00:00"
-    respx.get(
-        f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true&updated_after={ts}"
-    ).mock(
-        return_value=httpx.Response(200, json={"pages": {"next_url": None}, "data": []})
-    )
-    result = await fetch_passed_kanji(wk_client, updated_after=ts)
-    assert result == []
 
 
 @respx.mock
