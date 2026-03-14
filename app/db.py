@@ -1,18 +1,10 @@
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 from fsrs import Card, State
 
 _conn: Optional[sqlite3.Connection] = None
-_new_cards_per_day: int = 20
-
-
-def set_new_cards_per_day(n: int) -> None:
-    global _new_cards_per_day
-    if not isinstance(n, int) or n < 0:
-        raise ValueError(f"NEW_CARDS_PER_DAY must be a non-negative integer, got {n!r}")
-    _new_cards_per_day = n
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS characters (
@@ -84,13 +76,44 @@ def insert_card_if_new(kanji: str) -> None:
     _conn.commit()
 
 
-def _new_introduced_today() -> int:
-    """Count kanji whose first-ever review happened today (UTC)."""
-    today_start = (
-        datetime.now(timezone.utc)
-        .replace(hour=0, minute=0, second=0, microsecond=0)
-        .isoformat()
-    )
+def get_review_kanji(now: str) -> list[str]:
+    """Return kanji with due <= now that have been reviewed before."""
+    rows = _conn.execute(
+        "SELECT kanji FROM cards WHERE due <= ? AND last_review IS NOT NULL",
+        (now,),
+    ).fetchall()
+    return [row["kanji"] for row in rows]
+
+
+def get_new_kanji(now: str) -> list[str]:
+    """Return kanji with due <= now that have never been reviewed."""
+    rows = _conn.execute(
+        "SELECT kanji FROM cards WHERE due <= ? AND last_review IS NULL",
+        (now,),
+    ).fetchall()
+    return [row["kanji"] for row in rows]
+
+
+def count_review_due(now: str) -> int:
+    """Count review cards due by the given time."""
+    row = _conn.execute(
+        "SELECT COUNT(*) FROM cards WHERE due <= ? AND last_review IS NOT NULL",
+        (now,),
+    ).fetchone()
+    return row[0]
+
+
+def count_new_due(now: str) -> int:
+    """Count new cards due by the given time."""
+    row = _conn.execute(
+        "SELECT COUNT(*) FROM cards WHERE due <= ? AND last_review IS NULL",
+        (now,),
+    ).fetchone()
+    return row[0]
+
+
+def count_new_introduced_today(today_start: str) -> int:
+    """Count kanji whose first-ever review happened on or after today_start."""
     row = _conn.execute(
         """
         SELECT COUNT(*) FROM (
@@ -102,44 +125,6 @@ def _new_introduced_today() -> int:
         (today_start,),
     ).fetchone()
     return row[0]
-
-
-def get_due_kanji() -> list[str]:
-    now = datetime.now(timezone.utc).isoformat()
-    # Review cards: always included
-    review_rows = _conn.execute(
-        "SELECT kanji FROM cards WHERE due <= ? AND last_review IS NOT NULL",
-        (now,),
-    ).fetchall()
-    review_kanji = [row["kanji"] for row in review_rows]
-
-    # New cards: limited by daily cap
-    remaining_slots = max(0, _new_cards_per_day - _new_introduced_today())
-    new_rows = _conn.execute(
-        "SELECT kanji FROM cards WHERE due <= ? AND last_review IS NULL LIMIT ?",
-        (now, remaining_slots),
-    ).fetchall()
-    new_kanji = [row["kanji"] for row in new_rows]
-
-    return review_kanji + new_kanji
-
-
-def due_count() -> tuple[int, int]:
-    now = datetime.now(timezone.utc).isoformat()
-    review_row = _conn.execute(
-        "SELECT COUNT(*) FROM cards WHERE due <= ? AND last_review IS NOT NULL",
-        (now,),
-    ).fetchone()
-    review_count = review_row[0]
-
-    remaining_slots = max(0, _new_cards_per_day - _new_introduced_today())
-    new_row = _conn.execute(
-        "SELECT COUNT(*) FROM cards WHERE due <= ? AND last_review IS NULL",
-        (now,),
-    ).fetchone()
-    new_count = min(new_row[0], remaining_slots)
-
-    return (review_count + new_count, new_count)
 
 
 def get_card(kanji: str) -> Card:
@@ -242,6 +227,3 @@ def upsert_cached_subjects(subjects: dict[int, tuple[str, int]]) -> None:
     _conn.commit()
 
 
-def has_cached_subjects() -> bool:
-    row = _conn.execute("SELECT 1 FROM subject_cache LIMIT 1").fetchone()
-    return row is not None

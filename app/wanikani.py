@@ -3,8 +3,6 @@ from datetime import datetime, timezone
 
 import httpx
 
-import app.db as db
-
 _WANIKANI_BASE = "https://api.wanikani.com"
 
 
@@ -70,108 +68,74 @@ async def fetch_user(client: httpx.AsyncClient) -> dict:
     return resp.json()["data"]
 
 
-async def fetch_kanji_level_map(
+async def fetch_subjects(
     client: httpx.AsyncClient,
-    updated_after: str | None = None,
-) -> dict[int, tuple[str, int]]:
-    """Return {subject_id: (character, level)} for all kanji subjects."""
+    sync_meta: dict | None = None,
+) -> tuple[dict[int, tuple[str, int]] | None, dict | None]:
+    """Fetch kanji subjects from WaniKani, respecting conditional request headers.
+
+    Returns (level_map, response_meta) where:
+    - level_map is {subject_id: (kanji, level)} or None on 304
+    - response_meta is {"etag": ..., "last_modified": ...} or None on 304
+    """
+    cond_headers: dict[str, str] = {}
+    if sync_meta:
+        if sync_meta["etag"]:
+            cond_headers["If-None-Match"] = sync_meta["etag"]
+        if sync_meta["last_modified"]:
+            cond_headers["If-Modified-Since"] = sync_meta["last_modified"]
+
     url = f"{_WANIKANI_BASE}/v2/subjects?types=kanji"
-    if updated_after:
-        url += f"&updated_after={updated_after}"
-    items = await _paginate(client, url)
-    return {
+    if sync_meta:
+        url += f"&updated_after={sync_meta['synced_at']}"
+
+    first_resp = await _request_with_retry(client, url, extra_headers=cond_headers)
+
+    if first_resp is None:
+        return None, None
+
+    items = await _paginate_from_response(client, first_resp)
+    level_map = {
         item["id"]: (item["data"]["characters"], item["data"]["level"])
         for item in items
     }
+    response_meta = {
+        "etag": first_resp.headers.get("etag"),
+        "last_modified": first_resp.headers.get("last-modified"),
+    }
+    return level_map, response_meta
 
 
-async def fetch_passed_kanji(
+async def fetch_passed_assignments(
     client: httpx.AsyncClient,
-    updated_after: str | None = None,
-) -> list[int]:
-    """Return list of subject_ids for all passed kanji assignments."""
-    url = f"{_WANIKANI_BASE}/v2/assignments?subject_type=kanji&passed_at=true"
-    if updated_after:
-        url += f"&updated_after={updated_after}"
-    items = await _paginate(client, url)
-    return [item["data"]["subject_id"] for item in items]
+    sync_meta: dict | None = None,
+) -> tuple[list[int] | None, dict | None]:
+    """Fetch passed kanji assignments from WaniKani.
 
-
-async def sync(client: httpx.AsyncClient) -> list[tuple[str, int]]:
+    Returns (passed_ids, response_meta) where:
+    - passed_ids is [subject_id, ...] or None on 304
+    - response_meta is {"etag": ..., "last_modified": ...} or None on 304
     """
-    Sync passed WaniKani kanji into the local DB.
-    Returns list of (kanji, level) pairs that were processed.
-
-    Uses updated_after and conditional requests (ETag/If-None-Match) to
-    minimize API usage on repeat syncs.
-    """
-    now = datetime.now(timezone.utc).isoformat()
-
-    # --- Subjects (kanji level map) ---
-    subjects_meta = db.get_sync_meta("subjects")
     cond_headers: dict[str, str] = {}
-    if subjects_meta:
-        if subjects_meta["etag"]:
-            cond_headers["If-None-Match"] = subjects_meta["etag"]
-        if subjects_meta["last_modified"]:
-            cond_headers["If-Modified-Since"] = subjects_meta["last_modified"]
+    if sync_meta:
+        if sync_meta["etag"]:
+            cond_headers["If-None-Match"] = sync_meta["etag"]
+        if sync_meta["last_modified"]:
+            cond_headers["If-Modified-Since"] = sync_meta["last_modified"]
 
-    subjects_url = f"{_WANIKANI_BASE}/v2/subjects?types=kanji"
-    if subjects_meta:
-        subjects_url += f"&updated_after={subjects_meta['synced_at']}"
+    url = f"{_WANIKANI_BASE}/v2/assignments?subject_type=kanji&passed_at=true"
+    if sync_meta:
+        url += f"&updated_after={sync_meta['synced_at']}"
 
-    first_resp = await _request_with_retry(client, subjects_url, extra_headers=cond_headers)
+    first_resp = await _request_with_retry(client, url, extra_headers=cond_headers)
 
-    if first_resp is None:  # 304 — nothing changed, use local cache
-        level_map = db.get_cached_subjects()
-    else:
-        items = await _paginate_from_response(client, first_resp)
-        new_subjects = {
-            item["id"]: (item["data"]["characters"], item["data"]["level"])
-            for item in items
-        }
-        db.upsert_cached_subjects(new_subjects)
-        level_map = db.get_cached_subjects()
-        db.set_sync_meta(
-            "subjects",
-            now,
-            etag=first_resp.headers.get("etag"),
-            last_modified=first_resp.headers.get("last-modified"),
-        )
-
-    # --- Assignments (passed kanji) ---
-    assignments_meta = db.get_sync_meta("assignments")
-    cond_headers = {}
-    if assignments_meta:
-        if assignments_meta["etag"]:
-            cond_headers["If-None-Match"] = assignments_meta["etag"]
-        if assignments_meta["last_modified"]:
-            cond_headers["If-Modified-Since"] = assignments_meta["last_modified"]
-
-    assignments_url = f"{_WANIKANI_BASE}/v2/assignments?subject_type=kanji&passed_at=true"
-    if assignments_meta:
-        assignments_url += f"&updated_after={assignments_meta['synced_at']}"
-
-    first_resp = await _request_with_retry(client, assignments_url, extra_headers=cond_headers)
-
-    if first_resp is None:  # 304 — nothing changed, skip processing
-        return []
+    if first_resp is None:
+        return None, None
 
     items = await _paginate_from_response(client, first_resp)
     passed_ids = [item["data"]["subject_id"] for item in items]
-    db.set_sync_meta(
-        "assignments",
-        now,
-        etag=first_resp.headers.get("etag"),
-        last_modified=first_resp.headers.get("last-modified"),
-    )
-
-    synced: list[tuple[str, int]] = []
-    for subject_id in passed_ids:
-        if subject_id not in level_map:
-            continue
-        kanji, level = level_map[subject_id]
-        db.upsert_character(kanji, level, now)
-        db.insert_card_if_new(kanji)
-        synced.append((kanji, level))
-    return synced
+    response_meta = {
+        "etag": first_resp.headers.get("etag"),
+        "last_modified": first_resp.headers.get("last-modified"),
+    }
+    return passed_ids, response_meta
