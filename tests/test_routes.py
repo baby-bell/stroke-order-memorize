@@ -1,3 +1,5 @@
+import re
+
 import httpx
 import pytest
 import pytest_asyncio
@@ -112,6 +114,39 @@ async def test_home_shows_new_count(client, monkeypatch):
         db.insert_card_if_new(kanji)
     resp = await client.get("/")
     assert "1 new" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_session_review_again_requeues_card(client):
+    """Rating 'Again' should re-insert the card into the session queue."""
+    for kanji in ["一", "二", "三"]:
+        db.upsert_character(kanji, 1, now_iso())
+        db.insert_card_if_new(kanji)
+    await client.get("/session", follow_redirects=True)
+
+    # Rate first card "Again"
+    resp = await client.post("/session/review", data={"rating": "1"})
+    assert resp.status_code == 200
+
+    # The session should not be done yet
+    assert "hx-redirect" not in resp.headers
+
+    # Walk through remaining cards rating "Good" and collect all kanji seen
+    seen = []
+    for _ in range(10):  # safety limit
+        resp_card = await client.get("/session/card")
+        if resp_card.status_code != 200 or "kanji-display" not in resp_card.text:
+            break
+        match = re.search(r'class="kanji-display"[^>]*>(.+?)</div>', resp_card.text)
+        if match:
+            seen.append(match.group(1))
+        resp = await client.post("/session/review", data={"rating": "3"})
+        if resp.headers.get("hx-redirect"):
+            break
+
+    # With 3 cards and 1 "Again", we should see at least 3 cards in the loop
+    # (2 remaining + 1 requeued). Without requeue we'd only see 2.
+    assert len(seen) >= 3, f"Expected requeued card to appear again, saw: {seen}"
 
 
 _SUBJECTS_PAGE = {

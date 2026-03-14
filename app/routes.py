@@ -13,6 +13,7 @@ import app.db as db
 from app.core import (
     compute_due_count,
     process_sync_results,
+    requeue_position,
     schedule_review,
     select_due_cards,
 )
@@ -168,6 +169,11 @@ async def session_review(
     # Shell: persist
     db.update_card(kanji, updated_card)
     db.insert_review(kanji, rating, datetime.now(timezone.utc).isoformat())
+
+    # Requeue "Again" cards back into the session
+    pos = requeue_position(rating, len(queue))
+    if pos is not None:
+        queue.insert(pos, kanji)
 
     if not queue:
         resp = HTMLResponse("")
