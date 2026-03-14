@@ -100,8 +100,9 @@ async def test_session_done_returns_200(client):
 
 
 @pytest.mark.asyncio
-async def test_home_shows_new_count(client):
-    db.set_new_cards_per_day(1)
+async def test_home_shows_new_count(client, monkeypatch):
+    import app.routes as routes
+    monkeypatch.setattr(routes, "_NEW_CARDS_PER_DAY", 1)
     for kanji in ["一", "二", "三"]:
         db.upsert_character(kanji, 1, now_iso())
         db.insert_card_if_new(kanji)

@@ -63,23 +63,63 @@ class TestInsertCardIfNew:
         assert row[0] == 9.5
 
 
-class TestGetDueKanji:
-    def test_returns_due_kanji(self):
+class TestGetReviewKanji:
+    def test_returns_reviewed_due_kanji(self):
         db.upsert_character("一", 1, now_iso())
         db.insert_card_if_new("一")
-        # New cards are due immediately (due DEFAULT = now)
-        due = db.get_due_kanji()
-        assert "一" in due
-
-    def test_excludes_future_cards(self):
-        db.upsert_character("二", 1, now_iso())
-        db.insert_card_if_new("二")
         db._conn.execute(
-            "UPDATE cards SET due = '2099-01-01T00:00:00+00:00' WHERE kanji = '二'"
+            "UPDATE cards SET last_review = ? WHERE kanji = '一'",
+            (now_iso(),),
         )
         db._conn.commit()
-        due = db.get_due_kanji()
-        assert "二" not in due
+        now = datetime.now(timezone.utc).isoformat()
+        assert "一" in db.get_review_kanji(now)
+
+    def test_excludes_new_cards(self):
+        db.upsert_character("一", 1, now_iso())
+        db.insert_card_if_new("一")
+        now = datetime.now(timezone.utc).isoformat()
+        assert db.get_review_kanji(now) == []
+
+
+class TestGetNewKanji:
+    def test_returns_new_due_kanji(self):
+        db.upsert_character("一", 1, now_iso())
+        db.insert_card_if_new("一")
+        now = datetime.now(timezone.utc).isoformat()
+        assert "一" in db.get_new_kanji(now)
+
+    def test_excludes_future_cards(self):
+        db.upsert_character("一", 1, now_iso())
+        db.insert_card_if_new("一")
+        db._conn.execute(
+            "UPDATE cards SET due = '2099-01-01T00:00:00+00:00' WHERE kanji = '一'"
+        )
+        db._conn.commit()
+        now = datetime.now(timezone.utc).isoformat()
+        assert db.get_new_kanji(now) == []
+
+
+class TestCountNewIntroducedToday:
+    def test_counts_first_reviews_today(self):
+        db.upsert_character("一", 1, now_iso())
+        db.insert_review("一", 3, now_iso())
+        today_start = (
+            datetime.now(timezone.utc)
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            .isoformat()
+        )
+        assert db.count_new_introduced_today(today_start) == 1
+
+    def test_ignores_old_reviews(self):
+        db.upsert_character("一", 1, now_iso())
+        db.insert_review("一", 3, "2020-01-01T00:00:00+00:00")
+        today_start = (
+            datetime.now(timezone.utc)
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            .isoformat()
+        )
+        assert db.count_new_introduced_today(today_start) == 0
 
 
 class TestGetCard:
@@ -121,103 +161,6 @@ class TestInsertReview:
         db.upsert_character("一", 1, now_iso())
         with pytest.raises(Exception):
             db.insert_review("一", 5, now_iso())
-
-
-class TestDueCount:
-    def test_returns_count_of_due_cards(self):
-        for kanji in ["一", "二"]:
-            db.upsert_character(kanji, 1, now_iso())
-            db.insert_card_if_new(kanji)
-        total, new = db.due_count()
-        assert total == 2
-        assert new == 2
-
-
-class TestNewCardLimit:
-    def test_new_cards_limited_to_daily_max(self):
-        db.set_new_cards_per_day(2)
-        for kanji in ["一", "二", "三", "四", "五"]:
-            db.upsert_character(kanji, 1, now_iso())
-            db.insert_card_if_new(kanji)
-        due = db.get_due_kanji()
-        assert len(due) == 2
-
-    def test_review_cards_always_included(self):
-        db.set_new_cards_per_day(0)
-        db.upsert_character("一", 1, now_iso())
-        db.insert_card_if_new("一")
-        # Simulate a reviewed card: set last_review so it's not "new"
-        db._conn.execute(
-            "UPDATE cards SET last_review = ? WHERE kanji = '一'",
-            (now_iso(),),
-        )
-        db._conn.commit()
-        due = db.get_due_kanji()
-        assert "一" in due
-
-    def test_zero_limit_excludes_all_new_cards(self):
-        db.set_new_cards_per_day(0)
-        db.upsert_character("一", 1, now_iso())
-        db.insert_card_if_new("一")
-        due = db.get_due_kanji()
-        assert due == []
-
-    def test_introduced_today_counts_toward_limit(self):
-        db.set_new_cards_per_day(2)
-        for kanji in ["一", "二", "三"]:
-            db.upsert_character(kanji, 1, now_iso())
-            db.insert_card_if_new(kanji)
-        # Simulate reviewing "一" today (its first-ever review)
-        db.insert_review("一", 3, now_iso())
-        db._conn.execute(
-            "UPDATE cards SET last_review = ? WHERE kanji = '一'",
-            (now_iso(),),
-        )
-        db._conn.commit()
-        # "一" was introduced today, so only 1 new slot remains
-        due = db.get_due_kanji()
-        new_in_due = [k for k in due if k != "一"]
-        assert len(new_in_due) == 1
-
-    def test_limit_higher_than_available_new_cards(self):
-        db.set_new_cards_per_day(100)
-        for kanji in ["一", "二"]:
-            db.upsert_character(kanji, 1, now_iso())
-            db.insert_card_if_new(kanji)
-        due = db.get_due_kanji()
-        assert len(due) == 2
-
-
-class TestDueCountWithLimit:
-    def test_returns_tuple_of_total_and_new(self):
-        db.set_new_cards_per_day(20)
-        db.upsert_character("一", 1, now_iso())
-        db.insert_card_if_new("一")
-        result = db.due_count()
-        assert isinstance(result, tuple)
-        assert len(result) == 2
-
-    def test_counts_respect_new_card_limit(self):
-        db.set_new_cards_per_day(1)
-        for kanji in ["一", "二", "三"]:
-            db.upsert_character(kanji, 1, now_iso())
-            db.insert_card_if_new(kanji)
-        total, new = db.due_count()
-        assert total == 1
-        assert new == 1
-
-    def test_counts_include_review_cards(self):
-        db.set_new_cards_per_day(0)
-        db.upsert_character("一", 1, now_iso())
-        db.insert_card_if_new("一")
-        db._conn.execute(
-            "UPDATE cards SET last_review = ? WHERE kanji = '一'",
-            (now_iso(),),
-        )
-        db._conn.commit()
-        total, new = db.due_count()
-        assert total == 1
-        assert new == 0
 
 
 class TestSyncMeta:
