@@ -17,7 +17,7 @@ from app.core import (
     select_due_cards,
 )
 from app.strokes import parse_strokes
-from app.wanikani import fetch_subjects, fetch_passed_assignments
+from app.wanikani import fetch_subjects, fetch_passed_assignments, make_client
 
 templates = Jinja2Templates(directory="app/templates")
 router = APIRouter()
@@ -61,13 +61,7 @@ async def do_sync(request: Request):
     if not api_key:
         return HTMLResponse("<p>Error: WANIKANI_API_KEY not set in .env</p>")
     try:
-        async with httpx.AsyncClient(
-            base_url="https://api.wanikani.com",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Wanikani-Revision": "20170710",
-            },
-        ) as client:
+        async with make_client(api_key) as client:
             now = datetime.now(timezone.utc).isoformat()
 
             # Fetch subjects (with conditional request support)
