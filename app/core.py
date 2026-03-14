@@ -1,5 +1,7 @@
 """Functional core — pure business logic with no I/O."""
 
+import random
+
 from fsrs import Card, Rating, Scheduler
 
 
@@ -35,6 +37,21 @@ def process_sync_results(
     Returns [(kanji, level), ...] for IDs found in level_map.
     """
     return [level_map[sid] for sid in passed_ids if sid in level_map]
+
+
+def requeue_position(rating: int, queue_length: int) -> int | None:
+    """Return the index to re-insert a card at, or None if no requeue needed.
+
+    Only "Again" (rating=1) triggers a requeue. The card is placed
+    a few positions ahead so it's not immediate but comes back soon.
+    """
+    if rating != 1:
+        return None
+    if queue_length <= 1:
+        return 0
+    # Place 2-4 cards from front, capped at queue length
+    offset = min(random.randint(2, 4), queue_length)
+    return offset
 
 
 def schedule_review(card: Card, rating: int) -> Card:

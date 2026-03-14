@@ -2,6 +2,7 @@ from app.core import (
     select_due_cards,
     compute_due_count,
     process_sync_results,
+    requeue_position,
     schedule_review,
 )
 
@@ -163,6 +164,32 @@ class TestProcessSyncResults:
         level_map = {440: ("一", 1)}
         result = process_sync_results(passed_ids=[440, 440], level_map=level_map)
         assert result == [("一", 1), ("一", 1)]
+
+
+class TestRequeuePosition:
+    def test_returns_none_for_good_rating(self):
+        assert requeue_position(rating=3, queue_length=5) is None
+
+    def test_returns_none_for_easy_rating(self):
+        assert requeue_position(rating=4, queue_length=5) is None
+
+    def test_returns_none_for_hard_rating(self):
+        assert requeue_position(rating=2, queue_length=5) is None
+
+    def test_returns_position_for_again_rating(self):
+        pos = requeue_position(rating=1, queue_length=5)
+        assert pos is not None
+        assert 0 <= pos <= 5
+
+    def test_position_within_bounds_small_queue(self):
+        pos = requeue_position(rating=1, queue_length=1)
+        assert pos is not None
+        assert pos >= 0
+
+    def test_position_zero_queue(self):
+        """When queue is empty after pop, card goes at position 0 (back in)."""
+        pos = requeue_position(rating=1, queue_length=0)
+        assert pos == 0
 
 
 from fsrs import Card, State
