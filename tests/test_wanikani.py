@@ -48,7 +48,7 @@ async def test_fetch_user(wk_client):
 @respx.mock
 @pytest.mark.asyncio
 async def test_fetch_subjects_returns_level_map(wk_client):
-    respx.get(f"{BASE}/v2/subjects?types=kanji").mock(
+    respx.get(url__startswith=f"{BASE}/v2/subjects").mock(
         return_value=httpx.Response(
             200,
             headers={
@@ -72,9 +72,7 @@ async def test_fetch_subjects_returns_none_on_304(wk_client):
         "etag": '"old"',
         "last_modified": None,
     }
-    respx.get(
-        f"{BASE}/v2/subjects?types=kanji&updated_after={prior['synced_at']}"
-    ).mock(return_value=httpx.Response(304))
+    respx.get(url__startswith=f"{BASE}/v2/subjects").mock(return_value=httpx.Response(304))
     level_map, meta = await fetch_subjects(wk_client, sync_meta=prior)
     assert level_map is None
     assert meta is None
@@ -88,9 +86,9 @@ async def test_fetch_subjects_sends_conditional_headers(wk_client):
         "etag": '"my-etag"',
         "last_modified": "Mon, 01 Jan 2024 00:00:00 GMT",
     }
-    route = respx.get(
-        f"{BASE}/v2/subjects?types=kanji&updated_after={prior['synced_at']}"
-    ).mock(return_value=httpx.Response(200, json=_SUBJECTS_PAGE))
+    route = respx.get(url__startswith=f"{BASE}/v2/subjects").mock(
+        return_value=httpx.Response(200, json=_SUBJECTS_PAGE)
+    )
     await fetch_subjects(wk_client, sync_meta=prior)
     request = route.calls[0].request
     assert request.headers.get("if-none-match") == '"my-etag"'
@@ -105,19 +103,34 @@ async def test_fetch_subjects_appends_updated_after(wk_client):
         "etag": None,
         "last_modified": None,
     }
-    route = respx.get(
-        f"{BASE}/v2/subjects?types=kanji&updated_after={prior['synced_at']}"
-    ).mock(
+    route = respx.get(url__startswith=f"{BASE}/v2/subjects").mock(
         return_value=httpx.Response(200, json={"pages": {"next_url": None}, "data": []})
     )
     await fetch_subjects(wk_client, sync_meta=prior)
     assert route.called
+    request_url = str(route.calls[0].request.url)
+    assert "updated_after" in request_url
+    assert "2024-01-01" in request_url
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_fetch_subjects_url_encodes_updated_after(wk_client):
+    """updated_after with '+' in timezone must be properly URL-encoded."""
+    prior = {"synced_at": "2024-01-01T00:00:00+00:00", "etag": None, "last_modified": None}
+    route = respx.get(url__startswith=f"{BASE}/v2/subjects").mock(
+        return_value=httpx.Response(200, json={"pages": {"next_url": None}, "data": []})
+    )
+    await fetch_subjects(wk_client, sync_meta=prior)
+    request_url = str(route.calls[0].request.url)
+    # The '+' must be encoded as %2B in the query string
+    assert "%2B" in request_url or "+" not in request_url.split("updated_after=")[1]
 
 
 @respx.mock
 @pytest.mark.asyncio
 async def test_fetch_passed_assignments_returns_ids(wk_client):
-    respx.get(f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true").mock(
+    respx.get(url__startswith=f"{BASE}/v2/assignments").mock(
         return_value=httpx.Response(
             200,
             headers={"ETag": '"a-etag"'},
@@ -137,9 +150,7 @@ async def test_fetch_passed_assignments_returns_none_on_304(wk_client):
         "etag": '"old"',
         "last_modified": None,
     }
-    respx.get(
-        f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true&updated_after={prior['synced_at']}"
-    ).mock(return_value=httpx.Response(304))
+    respx.get(url__startswith=f"{BASE}/v2/assignments").mock(return_value=httpx.Response(304))
     ids, meta = await fetch_passed_assignments(wk_client, sync_meta=prior)
     assert ids is None
     assert meta is None
@@ -153,9 +164,9 @@ async def test_fetch_passed_assignments_sends_conditional_headers(wk_client):
         "etag": '"a-etag"',
         "last_modified": "Wed, 01 Jan 2025 00:00:00 GMT",
     }
-    route = respx.get(
-        f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true&updated_after={prior['synced_at']}"
-    ).mock(return_value=httpx.Response(200, json=_ASSIGNMENTS_PAGE))
+    route = respx.get(url__startswith=f"{BASE}/v2/assignments").mock(
+        return_value=httpx.Response(200, json=_ASSIGNMENTS_PAGE)
+    )
     await fetch_passed_assignments(wk_client, sync_meta=prior)
     request = route.calls[0].request
     assert request.headers.get("if-none-match") == '"a-etag"'

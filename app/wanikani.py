@@ -41,11 +41,12 @@ async def _request_with_retry(
     client: httpx.AsyncClient,
     url: str,
     extra_headers: dict[str, str] | None = None,
+    params: dict[str, str] | None = None,
 ) -> httpx.Response | None:
     """GET url with 429 retry (max 3 attempts). Returns None on 304, Response on success."""
     headers = extra_headers or {}
     for attempt in range(3):
-        resp = await client.get(url, headers=headers)
+        resp = await client.get(url, headers=headers, params=params)
         if resp.status_code == 304:
             return None
         if resp.status_code != 429:
@@ -116,11 +117,12 @@ async def fetch_subjects(
         if sync_meta["last_modified"]:
             cond_headers["If-Modified-Since"] = sync_meta["last_modified"]
 
-    url = f"{_WANIKANI_BASE}/v2/subjects?types=kanji"
+    url = f"{_WANIKANI_BASE}/v2/subjects"
+    params = {"types": "kanji"}
     if sync_meta:
-        url += f"&updated_after={sync_meta['synced_at']}"
+        params["updated_after"] = sync_meta["synced_at"]
 
-    first_resp = await _request_with_retry(client, url, extra_headers=cond_headers)
+    first_resp = await _request_with_retry(client, url, extra_headers=cond_headers, params=params)
 
     if first_resp is None:
         return None, None
@@ -154,11 +156,12 @@ async def fetch_passed_assignments(
         if sync_meta["last_modified"]:
             cond_headers["If-Modified-Since"] = sync_meta["last_modified"]
 
-    url = f"{_WANIKANI_BASE}/v2/assignments?subject_type=kanji&passed_at=true"
+    url = f"{_WANIKANI_BASE}/v2/assignments"
+    params = {"subject_type": "kanji", "passed_at": "true"}
     if sync_meta:
-        url += f"&updated_after={sync_meta['synced_at']}"
+        params["updated_after"] = sync_meta["synced_at"]
 
-    first_resp = await _request_with_retry(client, url, extra_headers=cond_headers)
+    first_resp = await _request_with_retry(client, url, extra_headers=cond_headers, params=params)
 
     if first_resp is None:
         return None, None

@@ -130,10 +130,10 @@ BASE = "https://api.wanikani.com"
 @pytest.mark.asyncio
 async def test_sync_creates_characters_and_cards(client, monkeypatch):
     monkeypatch.setenv("WANIKANI_API_KEY", "test-key")
-    respx.get(f"{BASE}/v2/subjects?types=kanji").mock(
+    respx.get(url__startswith=f"{BASE}/v2/subjects").mock(
         return_value=httpx.Response(200, json=_SUBJECTS_PAGE)
     )
-    respx.get(f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true").mock(
+    respx.get(url__startswith=f"{BASE}/v2/assignments").mock(
         return_value=httpx.Response(200, json=_ASSIGNMENTS_PAGE)
     )
     resp = await client.post("/sync")
