@@ -206,6 +206,20 @@ class TestSyncMeta:
         assert db.get_sync_meta("assignments")["etag"] == '"a1"'
 
 
+class TestGetNewKanjiOrder:
+    def test_new_kanji_not_always_in_insertion_order(self):
+        """New kanji should be returned in random order, not insertion order."""
+        now = datetime.now(timezone.utc).isoformat()
+        kanji_list = [chr(0x4E00 + i) for i in range(20)]  # 20 kanji
+        for k in kanji_list:
+            db.upsert_character(k, 1, now)
+            db.insert_card_if_new(k)
+
+        # Run 5 times — if order is random, at least one should differ
+        results = [tuple(db.get_new_kanji(now)) for _ in range(5)]
+        assert len(set(results)) > 1, "get_new_kanji returned identical order every time"
+
+
 class TestSubjectCache:
     def test_upsert_and_get_cached_subjects(self):
         subjects = {440: ("一", 1), 441: ("二", 1), 500: ("山", 3)}

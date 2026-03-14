@@ -88,7 +88,7 @@ def get_review_kanji(now: str) -> list[str]:
 def get_new_kanji(now: str) -> list[str]:
     """Return kanji with due <= now that have never been reviewed."""
     rows = _conn.execute(
-        "SELECT kanji FROM cards WHERE due <= ? AND last_review IS NULL",
+        "SELECT kanji FROM cards WHERE due <= ? AND last_review IS NULL ORDER BY RANDOM()",
         (now,),
     ).fetchall()
     return [row["kanji"] for row in rows]
