@@ -1,5 +1,7 @@
+import httpx
 import pytest
 import pytest_asyncio
+import respx
 from httpx import AsyncClient, ASGITransport
 import app.db as db
 from datetime import datetime, timezone
@@ -108,3 +110,39 @@ async def test_home_shows_new_count(client, monkeypatch):
         db.insert_card_if_new(kanji)
     resp = await client.get("/")
     assert "1 new" in resp.text
+
+
+_SUBJECTS_PAGE = {
+    "pages": {"next_url": None},
+    "data": [{"id": 440, "data": {"characters": "一", "level": 1}}],
+}
+_ASSIGNMENTS_PAGE = {
+    "pages": {"next_url": None},
+    "data": [{"data": {"subject_id": 440}}],
+}
+
+BASE = "https://api.wanikani.com"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_sync_creates_characters_and_cards(client, monkeypatch):
+    monkeypatch.setenv("WANIKANI_API_KEY", "test-key")
+    respx.get(f"{BASE}/v2/subjects?types=kanji").mock(
+        return_value=httpx.Response(200, json=_SUBJECTS_PAGE)
+    )
+    respx.get(f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true").mock(
+        return_value=httpx.Response(200, json=_ASSIGNMENTS_PAGE)
+    )
+    resp = await client.post("/sync")
+    assert resp.status_code == 200
+    assert "1 kanji" in resp.text
+    # Verify DB side effects
+    char_row = db._conn.execute(
+        "SELECT wk_level FROM characters WHERE kanji = '一'"
+    ).fetchone()
+    assert char_row["wk_level"] == 1
+    card_row = db._conn.execute(
+        "SELECT kanji FROM cards WHERE kanji = '一'"
+    ).fetchone()
+    assert card_row is not None
