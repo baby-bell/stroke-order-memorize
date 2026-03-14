@@ -10,11 +10,15 @@ def now_iso() -> str:
 
 class TestSchema:
     def test_tables_created(self):
-        cursor = db._conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        )
+        cursor = db._conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = {row[0] for row in cursor}
-        assert tables == {"characters", "cards", "reviews", "sync_meta", "subject_cache"}
+        assert tables == {
+            "characters",
+            "cards",
+            "reviews",
+            "sync_meta",
+            "subject_cache",
+        }
 
 
 class TestUpsertCharacter:
@@ -47,9 +51,9 @@ class TestInsertCardIfNew:
         row = db._conn.execute(
             "SELECT state, stability, difficulty FROM cards WHERE kanji = '一'"
         ).fetchone()
-        assert row[0] == 1       # State.Learning
-        assert row[1] is None    # stability NULL
-        assert row[2] is None    # difficulty NULL
+        assert row[0] == 1  # State.Learning
+        assert row[1] is None  # stability NULL
+        assert row[2] is None  # difficulty NULL
 
     def test_does_not_overwrite_existing_card(self):
         db.upsert_character("一", 1, now_iso())
@@ -137,6 +141,7 @@ class TestGetCard:
 class TestUpdateCard:
     def test_persists_updated_card(self):
         from fsrs import Scheduler, Rating
+
         db.upsert_character("一", 1, now_iso())
         db.insert_card_if_new("一")
         card = db.get_card("一")
@@ -168,7 +173,12 @@ class TestSyncMeta:
         assert db.get_sync_meta("subjects") is None
 
     def test_set_and_get_sync_meta(self):
-        db.set_sync_meta("subjects", "2024-01-01T00:00:00+00:00", etag='"abc"', last_modified="Wed, 01 Jan 2025 00:00:00 GMT")
+        db.set_sync_meta(
+            "subjects",
+            "2024-01-01T00:00:00+00:00",
+            etag='"abc"',
+            last_modified="Wed, 01 Jan 2025 00:00:00 GMT",
+        )
         meta = db.get_sync_meta("subjects")
         assert meta is not None
         assert meta["synced_at"] == "2024-01-01T00:00:00+00:00"

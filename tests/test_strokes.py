@@ -26,7 +26,7 @@ class TestParseStrokes:
 
     def test_stroke_tuple_has_four_elements(self):
         path_d, label, x, y = parse_strokes("一")[0]
-        assert path_d.startswith("M")   # SVG path Move command
+        assert path_d.startswith("M")  # SVG path Move command
         assert label == "1"
         float(x)  # must be numeric
         float(y)

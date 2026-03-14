@@ -132,9 +132,7 @@ async def session_card(
     queue = _queue(session_id)
     if not queue:
         return RedirectResponse("/session/done", status_code=303)
-    return templates.TemplateResponse(
-        request, "card.html", {"kanji": queue[0]}
-    )
+    return templates.TemplateResponse(request, "card.html", {"kanji": queue[0]})
 
 
 @router.get("/session/strokes", response_class=HTMLResponse)
@@ -146,9 +144,7 @@ async def session_strokes(
     if not queue:
         return HTMLResponse("<p>No active session.</p>")
     strokes = parse_strokes(queue[0])
-    return templates.TemplateResponse(
-        request, "strokes.html", {"strokes": strokes}
-    )
+    return templates.TemplateResponse(request, "strokes.html", {"strokes": strokes})
 
 
 @router.post("/session/review", response_class=HTMLResponse)

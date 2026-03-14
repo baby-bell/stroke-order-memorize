@@ -51,7 +51,10 @@ async def test_fetch_subjects_returns_level_map(wk_client):
     respx.get(f"{BASE}/v2/subjects?types=kanji").mock(
         return_value=httpx.Response(
             200,
-            headers={"ETag": '"s-etag"', "Last-Modified": "Mon, 01 Jan 2024 00:00:00 GMT"},
+            headers={
+                "ETag": '"s-etag"',
+                "Last-Modified": "Mon, 01 Jan 2024 00:00:00 GMT",
+            },
             json=_SUBJECTS_PAGE,
         )
     )
@@ -64,7 +67,11 @@ async def test_fetch_subjects_returns_level_map(wk_client):
 @respx.mock
 @pytest.mark.asyncio
 async def test_fetch_subjects_returns_none_on_304(wk_client):
-    prior = {"synced_at": "2024-01-01T00:00:00+00:00", "etag": '"old"', "last_modified": None}
+    prior = {
+        "synced_at": "2024-01-01T00:00:00+00:00",
+        "etag": '"old"',
+        "last_modified": None,
+    }
     respx.get(
         f"{BASE}/v2/subjects?types=kanji&updated_after={prior['synced_at']}"
     ).mock(return_value=httpx.Response(304))
@@ -93,10 +100,16 @@ async def test_fetch_subjects_sends_conditional_headers(wk_client):
 @respx.mock
 @pytest.mark.asyncio
 async def test_fetch_subjects_appends_updated_after(wk_client):
-    prior = {"synced_at": "2024-01-01T00:00:00+00:00", "etag": None, "last_modified": None}
+    prior = {
+        "synced_at": "2024-01-01T00:00:00+00:00",
+        "etag": None,
+        "last_modified": None,
+    }
     route = respx.get(
         f"{BASE}/v2/subjects?types=kanji&updated_after={prior['synced_at']}"
-    ).mock(return_value=httpx.Response(200, json={"pages": {"next_url": None}, "data": []}))
+    ).mock(
+        return_value=httpx.Response(200, json={"pages": {"next_url": None}, "data": []})
+    )
     await fetch_subjects(wk_client, sync_meta=prior)
     assert route.called
 
@@ -119,7 +132,11 @@ async def test_fetch_passed_assignments_returns_ids(wk_client):
 @respx.mock
 @pytest.mark.asyncio
 async def test_fetch_passed_assignments_returns_none_on_304(wk_client):
-    prior = {"synced_at": "2024-01-01T00:00:00+00:00", "etag": '"old"', "last_modified": None}
+    prior = {
+        "synced_at": "2024-01-01T00:00:00+00:00",
+        "etag": '"old"',
+        "last_modified": None,
+    }
     respx.get(
         f"{BASE}/v2/assignments?subject_type=kanji&passed_at=true&updated_after={prior['synced_at']}"
     ).mock(return_value=httpx.Response(304))
@@ -200,7 +217,9 @@ async def test_rate_limiter_enforces_one_rps():
     async def fake_sleep(duration):
         sleep_args.append(duration)
 
-    async with make_client("fake-key", clock=lambda: next(clock_values), sleep=fake_sleep) as client:
+    async with make_client(
+        "fake-key", clock=lambda: next(clock_values), sleep=fake_sleep
+    ) as client:
         await fetch_user(client)
         await fetch_user(client)
     assert sleep_args == [pytest.approx(0.7)]

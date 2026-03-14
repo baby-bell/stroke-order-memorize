@@ -1,4 +1,9 @@
-from app.core import select_due_cards, compute_due_count, process_sync_results, schedule_review
+from app.core import (
+    select_due_cards,
+    compute_due_count,
+    process_sync_results,
+    schedule_review,
+)
 
 
 class TestSelectDueCards:
@@ -182,6 +187,7 @@ class TestScheduleReview:
 
     def test_invalid_rating_raises(self):
         import pytest
+
         card = Card()
         with pytest.raises(ValueError):
             schedule_review(card, rating=0)

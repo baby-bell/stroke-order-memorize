@@ -141,9 +141,7 @@ def get_card(kanji: str) -> Card:
         difficulty=row["difficulty"],
         due=datetime.fromisoformat(row["due"]),
         last_review=(
-            datetime.fromisoformat(row["last_review"])
-            if row["last_review"]
-            else None
+            datetime.fromisoformat(row["last_review"]) if row["last_review"] else None
         ),
     )
 
@@ -185,7 +183,11 @@ def get_sync_meta(endpoint: str) -> dict | None:
     ).fetchone()
     if row is None:
         return None
-    return {"synced_at": row["synced_at"], "etag": row["etag"], "last_modified": row["last_modified"]}
+    return {
+        "synced_at": row["synced_at"],
+        "etag": row["etag"],
+        "last_modified": row["last_modified"],
+    }
 
 
 def set_sync_meta(
@@ -225,5 +227,3 @@ def upsert_cached_subjects(subjects: dict[int, tuple[str, int]]) -> None:
         [(sid, chars, level) for sid, (chars, level) in subjects.items()],
     )
     _conn.commit()
-
-

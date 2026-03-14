@@ -34,11 +34,7 @@ def process_sync_results(
 
     Returns [(kanji, level), ...] for IDs found in level_map.
     """
-    return [
-        level_map[sid]
-        for sid in passed_ids
-        if sid in level_map
-    ]
+    return [level_map[sid] for sid in passed_ids if sid in level_map]
 
 
 def schedule_review(card: Card, rating: int) -> Card:

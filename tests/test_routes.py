@@ -14,6 +14,7 @@ def now_iso():
 @pytest_asyncio.fixture
 async def client():
     from main import app
+
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as c:
@@ -104,6 +105,7 @@ async def test_session_done_returns_200(client):
 @pytest.mark.asyncio
 async def test_home_shows_new_count(client, monkeypatch):
     import app.routes as routes
+
     monkeypatch.setattr(routes, "_NEW_CARDS_PER_DAY", 1)
     for kanji in ["一", "二", "三"]:
         db.upsert_character(kanji, 1, now_iso())
@@ -142,7 +144,5 @@ async def test_sync_creates_characters_and_cards(client, monkeypatch):
         "SELECT wk_level FROM characters WHERE kanji = '一'"
     ).fetchone()
     assert char_row["wk_level"] == 1
-    card_row = db._conn.execute(
-        "SELECT kanji FROM cards WHERE kanji = '一'"
-    ).fetchone()
+    card_row = db._conn.execute("SELECT kanji FROM cards WHERE kanji = '一'").fetchone()
     assert card_row is not None
