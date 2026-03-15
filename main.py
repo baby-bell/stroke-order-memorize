@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-import app.db as db
+from app.db import Database
 from app.routes import router
 
 load_dotenv()
@@ -13,8 +13,9 @@ load_dotenv()
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
-    db.init(os.getenv("DB_PATH", "stroke-memorize.db"))
+    application.state.db = Database(os.getenv("DB_PATH", "stroke-memorize.db"))
     yield
+    application.state.db.close()
 
 
 app = FastAPI(lifespan=lifespan)

@@ -5,11 +5,10 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, Cookie, Form, Request
+from fastapi import APIRouter, Cookie, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-import app.db as db
 from app.core import (
     compute_due_count,
     process_sync_results,
@@ -17,6 +16,7 @@ from app.core import (
     schedule_review,
     select_due_cards,
 )
+from app.db import Database
 from app.strokes import parse_strokes
 from app.wanikani import fetch_subjects, fetch_passed_assignments, make_client
 
@@ -26,6 +26,10 @@ router = APIRouter()
 _sessions: dict[str, list[str]] = {}
 
 _NEW_CARDS_PER_DAY: int = int(os.getenv("NEW_CARDS_PER_DAY", "20"))
+
+
+def get_db(request: Request) -> Database:
+    return request.app.state.db
 
 
 def _today_start_iso() -> str:
@@ -43,7 +47,7 @@ def _queue(session_id: str | None) -> list[str]:
 
 
 @router.get("/", response_class=HTMLResponse)
-async def home(request: Request):
+async def home(request: Request, db: Database = Depends(get_db)):
     now = datetime.now(timezone.utc).isoformat()
     total, new = compute_due_count(
         review_count=db.count_review_due(now),
@@ -57,7 +61,7 @@ async def home(request: Request):
 
 
 @router.post("/sync", response_class=HTMLResponse)
-async def do_sync(request: Request):
+async def do_sync(request: Request, db: Database = Depends(get_db)):
     api_key = os.getenv("WANIKANI_API_KEY")
     if not api_key:
         return HTMLResponse("<p>Error: WANIKANI_API_KEY not set in .env</p>")
@@ -106,6 +110,8 @@ async def do_sync(request: Request):
 
 @router.get("/session")
 async def start_session(
+    request: Request,
+    db: Database = Depends(get_db),
     session_id: str | None = Cookie(default=None),
 ):
     now = datetime.now(timezone.utc).isoformat()
@@ -152,6 +158,7 @@ async def session_strokes(
 async def session_review(
     request: Request,
     rating: Annotated[int, Form()],
+    db: Database = Depends(get_db),
     session_id: str | None = Cookie(default=None),
 ):
     queue = _queue(session_id)

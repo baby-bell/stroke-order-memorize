@@ -5,8 +5,10 @@ import pytest
 import pytest_asyncio
 import respx
 from httpx import AsyncClient, ASGITransport
-import app.db as db
 from datetime import datetime, timezone
+
+from app.db import Database
+from app.routes import get_db
 
 
 def now_iso():
@@ -14,13 +16,21 @@ def now_iso():
 
 
 @pytest_asyncio.fixture
-async def client():
+async def client(fresh_db, monkeypatch):
+    # Prevent the lifespan from creating a real database file on disk.
+    monkeypatch.setenv("DB_PATH", ":memory:")
+    monkeypatch.delenv("WANIKANI_API_KEY", raising=False)
+
     from main import app
+
+    app.dependency_overrides[get_db] = lambda: fresh_db
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as c:
         yield c
+
+    app.dependency_overrides.clear()
 
 
 @pytest.mark.asyncio
@@ -46,18 +56,18 @@ async def test_session_redirects_to_done_when_no_due_cards(client):
 
 
 @pytest.mark.asyncio
-async def test_session_redirects_to_card_when_cards_due(client):
-    db.upsert_character("一", 1, now_iso())
-    db.insert_card_if_new("一")
+async def test_session_redirects_to_card_when_cards_due(client, fresh_db):
+    fresh_db.upsert_character("一", 1, now_iso())
+    fresh_db.insert_card_if_new("一")
     resp = await client.get("/session", follow_redirects=False)
     assert resp.status_code == 303
     assert resp.headers["location"].endswith("/session/card")
 
 
 @pytest.mark.asyncio
-async def test_session_card_displays_kanji(client):
-    db.upsert_character("一", 1, now_iso())
-    db.insert_card_if_new("一")
+async def test_session_card_displays_kanji(client, fresh_db):
+    fresh_db.upsert_character("一", 1, now_iso())
+    fresh_db.insert_card_if_new("一")
     await client.get("/session", follow_redirects=True)
     resp = await client.get("/session/card")
     assert resp.status_code == 200
@@ -65,9 +75,9 @@ async def test_session_card_displays_kanji(client):
 
 
 @pytest.mark.asyncio
-async def test_session_strokes_returns_svg_paths(client):
-    db.upsert_character("一", 1, now_iso())
-    db.insert_card_if_new("一")
+async def test_session_strokes_returns_svg_paths(client, fresh_db):
+    fresh_db.upsert_character("一", 1, now_iso())
+    fresh_db.insert_card_if_new("一")
     await client.get("/session", follow_redirects=True)
     resp = await client.get("/session/strokes")
     assert resp.status_code == 200
@@ -76,22 +86,22 @@ async def test_session_strokes_returns_svg_paths(client):
 
 
 @pytest.mark.asyncio
-async def test_session_review_valid_rating_advances_queue(client):
+async def test_session_review_valid_rating_advances_queue(client, fresh_db):
     for kanji in ["一", "二"]:
-        db.upsert_character(kanji, 1, now_iso())
-        db.insert_card_if_new(kanji)
+        fresh_db.upsert_character(kanji, 1, now_iso())
+        fresh_db.insert_card_if_new(kanji)
     await client.get("/session", follow_redirects=True)
     resp = await client.post("/session/review", data={"rating": "3"})
     assert resp.status_code == 200
     # FSRS review row inserted
-    row = db._conn.execute("SELECT COUNT(*) FROM reviews").fetchone()
+    row = fresh_db.conn.execute("SELECT COUNT(*) FROM reviews").fetchone()
     assert row[0] == 1
 
 
 @pytest.mark.asyncio
-async def test_session_review_last_card_triggers_hx_redirect(client):
-    db.upsert_character("一", 1, now_iso())
-    db.insert_card_if_new("一")
+async def test_session_review_last_card_triggers_hx_redirect(client, fresh_db):
+    fresh_db.upsert_character("一", 1, now_iso())
+    fresh_db.insert_card_if_new("一")
     await client.get("/session", follow_redirects=True)
     resp = await client.post("/session/review", data={"rating": "3"})
     assert resp.status_code == 200
@@ -105,23 +115,23 @@ async def test_session_done_returns_200(client):
 
 
 @pytest.mark.asyncio
-async def test_home_shows_new_count(client, monkeypatch):
+async def test_home_shows_new_count(client, fresh_db, monkeypatch):
     import app.routes as routes
 
     monkeypatch.setattr(routes, "_NEW_CARDS_PER_DAY", 1)
     for kanji in ["一", "二", "三"]:
-        db.upsert_character(kanji, 1, now_iso())
-        db.insert_card_if_new(kanji)
+        fresh_db.upsert_character(kanji, 1, now_iso())
+        fresh_db.insert_card_if_new(kanji)
     resp = await client.get("/")
     assert "1 new" in resp.text
 
 
 @pytest.mark.asyncio
-async def test_session_review_again_requeues_card(client):
+async def test_session_review_again_requeues_card(client, fresh_db):
     """Rating 'Again' should re-insert the card into the session queue."""
     for kanji in ["一", "二", "三"]:
-        db.upsert_character(kanji, 1, now_iso())
-        db.insert_card_if_new(kanji)
+        fresh_db.upsert_character(kanji, 1, now_iso())
+        fresh_db.insert_card_if_new(kanji)
     await client.get("/session", follow_redirects=True)
 
     # Rate first card "Again"
@@ -163,7 +173,7 @@ BASE = "https://api.wanikani.com"
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_sync_creates_characters_and_cards(client, monkeypatch):
+async def test_sync_creates_characters_and_cards(client, fresh_db, monkeypatch):
     monkeypatch.setenv("WANIKANI_API_KEY", "test-key")
     respx.get(url__startswith=f"{BASE}/v2/subjects").mock(
         return_value=httpx.Response(200, json=_SUBJECTS_PAGE)
@@ -175,9 +185,9 @@ async def test_sync_creates_characters_and_cards(client, monkeypatch):
     assert resp.status_code == 200
     assert "1 kanji" in resp.text
     # Verify DB side effects
-    char_row = db._conn.execute(
+    char_row = fresh_db.conn.execute(
         "SELECT wk_level FROM characters WHERE kanji = '一'"
     ).fetchone()
     assert char_row["wk_level"] == 1
-    card_row = db._conn.execute("SELECT kanji FROM cards WHERE kanji = '一'").fetchone()
+    card_row = fresh_db.conn.execute("SELECT kanji FROM cards WHERE kanji = '一'").fetchone()
     assert card_row is not None
