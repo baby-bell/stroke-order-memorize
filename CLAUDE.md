@@ -4,7 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-`stroke-memorize` is a Python web app for memorizing stroke order and how to write Japanese kanji. It uses FastAPI + HTMX + SQLite with FSRS spaced repetition scheduling. Cards are sourced from WaniKani and stroke data from KanjiVG.
+`stroke-memorize` is a Python web app for memorizing stroke order and how to write Japanese kanji.
+It uses FastAPI + HTMX + SQLite with FSRS spaced repetition scheduling. Cards are sourced from WaniKani and stroke data from KanjiVG.
 
 ## Package Manager
 
@@ -42,3 +43,6 @@ Python version is pinned to 3.14 via `.python-version`.
 - **Test all:** `uv run pytest`
 - **Single test:** `uv run pytest tests/test_db.py::TestUpsertCharacter -v`
 - **Env:** copy `.env.example` to `.env` and fill in `WANIKANI_API_KEY`
+
+## Tips
+- Remember to delete worktrees before deleting the branch in the worktree
