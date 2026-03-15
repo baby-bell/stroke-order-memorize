@@ -178,6 +178,16 @@ async def test_session_card_show_strokes_has_id(client, fresh_db):
     assert 'id="show-strokes-btn"' in resp.text
 
 
+@pytest.mark.asyncio
+async def test_session_strokes_has_prev_button(client, fresh_db):
+    fresh_db.upsert_character("一", 1, now_iso())
+    fresh_db.insert_card_if_new("一")
+    await client.get("/session", follow_redirects=True)
+    resp = await client.get("/session/strokes")
+    assert 'id="prev-stroke-btn"' in resp.text
+    assert "prevStroke()" in resp.text
+
+
 _SUBJECTS_PAGE = {
     "pages": {"next_url": None},
     "data": [{"id": 440, "data": {"characters": "一", "level": 1}}],

@@ -10,5 +10,6 @@
   {% endfor %}
 </svg>
 <p>Stroke <span id="stroke-count">0</span> of {{ strokes|length }}</p>
+<button id="prev-stroke-btn" onclick="prevStroke()" disabled>Prev</button>
 <button id="next-stroke-btn" onclick="nextStroke()">Next Stroke</button>
 <script>initStrokes({{ strokes|length }});</script>

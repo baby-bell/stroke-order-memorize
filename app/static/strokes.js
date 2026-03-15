@@ -10,6 +10,8 @@ function initStrokes(total) {
   });
   const nextBtn = document.getElementById('next-stroke-btn');
   if (nextBtn) nextBtn.disabled = _strokeTotal === 0;
+  const prevBtn = document.getElementById('prev-stroke-btn');
+  if (prevBtn) prevBtn.disabled = true;
 }
 
 function nextStroke() {
@@ -25,4 +27,23 @@ function nextStroke() {
   if (counter) counter.textContent = String(_strokeIndex);
   const nextBtn = document.getElementById('next-stroke-btn');
   if (nextBtn) nextBtn.disabled = _strokeIndex >= _strokeTotal;
+  const prevBtn = document.getElementById('prev-stroke-btn');
+  if (prevBtn) prevBtn.disabled = false;
+}
+
+function prevStroke() {
+  if (_strokeIndex <= 0) return;
+  _strokeIndex--;
+  document.querySelectorAll(`.stroke[data-stroke="${_strokeIndex}"]`).forEach(el => {
+    el.style.opacity = '0';
+  });
+  document.querySelectorAll(`.stroke-label[data-stroke="${_strokeIndex}"]`).forEach(el => {
+    el.style.display = 'none';
+  });
+  const counter = document.getElementById('stroke-count');
+  if (counter) counter.textContent = String(_strokeIndex);
+  const prevBtn = document.getElementById('prev-stroke-btn');
+  if (prevBtn) prevBtn.disabled = _strokeIndex <= 0;
+  const nextBtn = document.getElementById('next-stroke-btn');
+  if (nextBtn) nextBtn.disabled = false;
 }
