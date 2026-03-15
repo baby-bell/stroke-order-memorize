@@ -30,7 +30,7 @@
 - Modify: `tests/conftest.py`
 - Modify: `tests/test_db.py`
 
-- [ ] **Step 1: Write a failing test that constructs `Database`**
+- [x] **Step 1: Write a failing test that constructs `Database`**
 
 Add a new test class at the top of `tests/test_db.py`:
 
@@ -58,7 +58,7 @@ class TestDatabaseClass:
 Run: `uv run pytest tests/test_db.py::TestDatabaseClass::test_creates_tables_on_init -v`
 Expected: FAIL — `ImportError: cannot import name 'Database' from 'app.db'`
 
-- [ ] **Step 2: Implement the `Database` class and remove old module-level functions**
+- [x] **Step 2: Implement the `Database` class and remove old module-level functions**
 
 Replace the entire contents of `app/db.py` with:
 
@@ -285,12 +285,12 @@ class Database:
 Run: `uv run pytest tests/test_db.py::TestDatabaseClass::test_creates_tables_on_init -v`
 Expected: PASS
 
-- [ ] **Step 3: Verify existing tests fail (they still use old module-level API)**
+- [x] **Step 3: Verify existing tests fail (they still use old module-level API)**
 
 Run: `uv run pytest tests/test_db.py -v`
 Expected: FAIL — existing tests still use `db.upsert_character(...)` and `db._conn` which no longer exist.
 
-- [ ] **Step 4: Update `tests/conftest.py` to yield a `Database` instance**
+- [x] **Step 4: Update `tests/conftest.py` to yield a `Database` instance**
 
 Replace the entire contents of `tests/conftest.py` with:
 
@@ -307,7 +307,7 @@ def fresh_db():
     database.close()
 ```
 
-- [ ] **Step 5: Update `tests/test_db.py` to use the `fresh_db` fixture**
+- [x] **Step 5: Update `tests/test_db.py` to use the `fresh_db` fixture**
 
 Replace the entire contents of `tests/test_db.py` with:
 
@@ -574,7 +574,7 @@ class TestSubjectCache:
 Run: `uv run pytest tests/test_db.py -v`
 Expected: ALL PASS (all 24 tests)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/db.py tests/test_db.py tests/conftest.py
@@ -590,7 +590,7 @@ git commit -m "refactor: replace db module-level global with Database class"
 - Modify: `app/routes.py`
 - Modify: `tests/test_routes.py`
 
-- [ ] **Step 1: Update `main.py` to create `Database` in lifespan**
+- [x] **Step 1: Update `main.py` to create `Database` in lifespan**
 
 Replace the entire contents of `main.py` with:
 
@@ -620,7 +620,7 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(router)
 ```
 
-- [ ] **Step 2: Update `app/routes.py` to use dependency injection**
+- [x] **Step 2: Update `app/routes.py` to use dependency injection**
 
 Replace the entire contents of `app/routes.py` with:
 
@@ -1023,12 +1023,12 @@ async def test_sync_creates_characters_and_cards(client, fresh_db, monkeypatch):
     assert card_row is not None
 ```
 
-- [ ] **Step 4: Run all tests**
+- [x] **Step 4: Run all tests**
 
 Run: `uv run pytest -v`
 Expected: ALL PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add main.py app/routes.py tests/test_routes.py
@@ -1039,7 +1039,7 @@ git commit -m "refactor: wire Database into routes via FastAPI dependency inject
 
 ### Task 3: Remove dead code and verify
 
-- [ ] **Step 1: Verify no remaining references to old API**
+- [x] **Step 1: Verify no remaining references to old API**
 
 Run these searches — each should return zero results:
 
@@ -1063,12 +1063,12 @@ Expected output: `No stale references found.`
 
 If any stale references are found, remove them from the identified files.
 
-- [ ] **Step 2: Run full test suite**
+- [x] **Step 2: Run full test suite**
 
 Run: `uv run pytest -v`
 Expected: ALL PASS
 
-- [ ] **Step 3: Commit (only if changes were made in Step 1)**
+- [x] **Step 3: Commit (only if changes were made in Step 1)**
 
 ```bash
 git add -u
