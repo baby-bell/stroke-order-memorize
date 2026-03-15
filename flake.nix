@@ -12,7 +12,7 @@
     in
     {
       devShells.${system}.default = pkgs.mkShell {
-        packages = [ pkgs.just pkgs.pyright ];
+        packages = [ pkgs.just pkgs.pyright pkgs.uv ];
       };
     };
 }
