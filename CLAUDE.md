@@ -8,6 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Package Manager
 
+This project uses Nix flakes to manage non-Python dependencies.
+Check `flake.nix` to see which packages are installed.
+Use `nix develop --command` to run commands.
+
 This project uses `uv`. Use `uv` for all dependency and environment management:
 
 ```bash
@@ -30,6 +34,7 @@ Python version is pinned to 3.14 via `.python-version`.
 - `app/static/strokes.js` — Stroke reveal slideshow JS
 - `tests/` — pytest test suite
 - `pyproject.toml` — project metadata and dependencies
+
 
 ## Commands
 
