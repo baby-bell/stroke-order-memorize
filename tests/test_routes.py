@@ -159,6 +159,25 @@ async def test_session_review_again_requeues_card(client, fresh_db):
     assert len(seen) >= 3, f"Expected requeued card to appear again, saw: {seen}"
 
 
+@pytest.mark.asyncio
+async def test_session_card_has_go_home_link(client, fresh_db):
+    fresh_db.upsert_character("一", 1, now_iso())
+    fresh_db.insert_card_if_new("一")
+    await client.get("/session", follow_redirects=True)
+    resp = await client.get("/session/card")
+    assert 'href="/"' in resp.text
+    assert "Go Home" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_session_card_show_strokes_has_id(client, fresh_db):
+    fresh_db.upsert_character("一", 1, now_iso())
+    fresh_db.insert_card_if_new("一")
+    await client.get("/session", follow_redirects=True)
+    resp = await client.get("/session/card")
+    assert 'id="show-strokes-btn"' in resp.text
+
+
 _SUBJECTS_PAGE = {
     "pages": {"next_url": None},
     "data": [{"id": 440, "data": {"characters": "一", "level": 1}}],

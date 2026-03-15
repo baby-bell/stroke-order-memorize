@@ -1,6 +1,7 @@
 <div class="kanji-display" lang="ja">{{ kanji }}</div>
 <div id="stroke-area">
-  <button hx-get="/session/strokes"
+  <button id="show-strokes-btn"
+          hx-get="/session/strokes"
           hx-target="#stroke-area"
           hx-swap="innerHTML">Show Strokes</button>
 </div>
@@ -26,3 +27,6 @@
           hx-swap="innerHTML"
           hx-vals='{"rating": "4"}'>Easy</button>
 </div>
+<p style="text-align:center;margin-top:1.5rem;">
+  <a href="/"><button type="button">Go Home</button></a>
+</p>
