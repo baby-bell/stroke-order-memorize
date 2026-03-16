@@ -19,7 +19,6 @@ def now_iso():
 async def client(fresh_db, monkeypatch):
     # Prevent the lifespan from creating a real database file on disk.
     monkeypatch.setenv("DB_PATH", ":memory:")
-    monkeypatch.delenv("WANIKANI_API_KEY", raising=False)
 
     from main import app
 
