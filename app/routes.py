@@ -183,9 +183,21 @@ async def session_review(
         queue.insert(pos, kanji)
 
     if not queue:
-        resp = HTMLResponse("")
-        resp.headers["HX-Redirect"] = "/session/done"
-        return resp
+        # Re-check for cards that became due during the session
+        now = datetime.now(timezone.utc).isoformat()
+        newly_due = select_due_cards(
+            review_kanji=db.get_review_kanji(now),
+            new_kanji=db.get_new_kanji(now),
+            new_today_count=db.count_new_introduced_today(_today_start_iso()),
+            daily_limit=_NEW_CARDS_PER_DAY,
+        )
+        if newly_due:
+            random.shuffle(newly_due)
+            queue.extend(newly_due)
+        else:
+            resp = HTMLResponse("")
+            resp.headers["HX-Redirect"] = "/session/done"
+            return resp
 
     return templates.TemplateResponse(
         request, "_card_partial.html", {"kanji": queue[0]}

@@ -187,6 +187,45 @@ async def test_session_strokes_has_prev_button(client, fresh_db):
     assert "prevStroke()" in resp.text
 
 
+@pytest.mark.asyncio
+async def test_session_review_continues_when_cards_become_due_during_session(
+    client, fresh_db, monkeypatch
+):
+    """When the queue empties but cards are now due again, session should continue."""
+    from fsrs import Card, State
+
+    fresh_db.upsert_character("一", 1, now_iso())
+    fresh_db.insert_card_if_new("一")
+    await client.get("/session", follow_redirects=True)
+
+    # Make schedule_review return a card that's immediately due again
+    import app.routes as routes_mod
+    from app.core import schedule_review as original_schedule
+
+    def schedule_immediately_due(card, rating):
+        updated = original_schedule(card, rating)
+        # Force the card to be due right now (simulates short FSRS interval)
+        updated = Card(
+            state=updated.state,
+            step=updated.step,
+            stability=updated.stability,
+            difficulty=updated.difficulty,
+            due=datetime.now(timezone.utc),
+            last_review=updated.last_review,
+        )
+        return updated
+
+    monkeypatch.setattr(routes_mod, "schedule_review", schedule_immediately_due)
+
+    # Review the only card with "Good" — queue empties, but card is immediately due
+    resp = await client.post("/session/review", data={"rating": "3"})
+    assert resp.status_code == 200
+    # Session should NOT end — the card is due again
+    assert "hx-redirect" not in resp.headers, (
+        "Session ended despite cards being immediately due"
+    )
+
+
 _SUBJECTS_PAGE = {
     "pages": {"next_url": None},
     "data": [{"id": 440, "data": {"characters": "一", "level": 1}}],
