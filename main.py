@@ -2,13 +2,14 @@ import os
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.db import Database
 from app.routes import router
-
-load_dotenv()
 
 
 @asynccontextmanager
