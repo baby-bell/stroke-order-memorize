@@ -133,7 +133,9 @@ class Database:
             difficulty=row["difficulty"],
             due=datetime.fromisoformat(row["due"]),
             last_review=(
-                datetime.fromisoformat(row["last_review"]) if row["last_review"] else None
+                datetime.fromisoformat(row["last_review"])
+                if row["last_review"]
+                else None
             ),
         )
 
@@ -199,7 +201,9 @@ class Database:
         self.conn.commit()
 
     def get_cached_subjects(self) -> dict[int, tuple[str, int]]:
-        rows = self.conn.execute("SELECT id, characters, level FROM subject_cache").fetchall()
+        rows = self.conn.execute(
+            "SELECT id, characters, level FROM subject_cache"
+        ).fetchall()
         return {row["id"]: (row["characters"], row["level"]) for row in rows}
 
     def upsert_cached_subjects(self, subjects: dict[int, tuple[str, int]]) -> None:

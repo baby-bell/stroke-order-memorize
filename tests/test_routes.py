@@ -221,9 +221,9 @@ async def test_session_review_continues_when_cards_become_due_during_session(
     resp = await client.post("/session/review", data={"rating": "3"})
     assert resp.status_code == 200
     # Session should NOT end — the card is due again
-    assert "hx-redirect" not in resp.headers, (
-        "Session ended despite cards being immediately due"
-    )
+    assert (
+        "hx-redirect" not in resp.headers
+    ), "Session ended despite cards being immediately due"
 
 
 _SUBJECTS_PAGE = {
@@ -256,5 +256,7 @@ async def test_sync_creates_characters_and_cards(client, fresh_db, monkeypatch):
         "SELECT wk_level FROM characters WHERE kanji = '一'"
     ).fetchone()
     assert char_row["wk_level"] == 1
-    card_row = fresh_db.conn.execute("SELECT kanji FROM cards WHERE kanji = '一'").fetchone()
+    card_row = fresh_db.conn.execute(
+        "SELECT kanji FROM cards WHERE kanji = '一'"
+    ).fetchone()
     assert card_row is not None

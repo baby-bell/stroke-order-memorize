@@ -72,7 +72,9 @@ async def test_fetch_subjects_returns_none_on_304(wk_client):
         "etag": '"old"',
         "last_modified": None,
     }
-    respx.get(url__startswith=f"{BASE}/v2/subjects").mock(return_value=httpx.Response(304))
+    respx.get(url__startswith=f"{BASE}/v2/subjects").mock(
+        return_value=httpx.Response(304)
+    )
     level_map, meta = await fetch_subjects(wk_client, sync_meta=prior)
     assert level_map is None
     assert meta is None
@@ -117,7 +119,11 @@ async def test_fetch_subjects_appends_updated_after(wk_client):
 @pytest.mark.asyncio
 async def test_fetch_subjects_url_encodes_updated_after(wk_client):
     """updated_after with '+' in timezone must be properly URL-encoded."""
-    prior = {"synced_at": "2024-01-01T00:00:00+00:00", "etag": None, "last_modified": None}
+    prior = {
+        "synced_at": "2024-01-01T00:00:00+00:00",
+        "etag": None,
+        "last_modified": None,
+    }
     route = respx.get(url__startswith=f"{BASE}/v2/subjects").mock(
         return_value=httpx.Response(200, json={"pages": {"next_url": None}, "data": []})
     )
@@ -150,7 +156,9 @@ async def test_fetch_passed_assignments_returns_none_on_304(wk_client):
         "etag": '"old"',
         "last_modified": None,
     }
-    respx.get(url__startswith=f"{BASE}/v2/assignments").mock(return_value=httpx.Response(304))
+    respx.get(url__startswith=f"{BASE}/v2/assignments").mock(
+        return_value=httpx.Response(304)
+    )
     ids, meta = await fetch_passed_assignments(wk_client, sync_meta=prior)
     assert ids is None
     assert meta is None

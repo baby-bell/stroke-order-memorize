@@ -122,7 +122,9 @@ async def fetch_subjects(
     if sync_meta:
         params["updated_after"] = sync_meta["synced_at"]
 
-    first_resp = await _request_with_retry(client, url, extra_headers=cond_headers, params=params)
+    first_resp = await _request_with_retry(
+        client, url, extra_headers=cond_headers, params=params
+    )
 
     if first_resp is None:
         return None, None
@@ -161,7 +163,9 @@ async def fetch_passed_assignments(
     if sync_meta:
         params["updated_after"] = sync_meta["synced_at"]
 
-    first_resp = await _request_with_retry(client, url, extra_headers=cond_headers, params=params)
+    first_resp = await _request_with_retry(
+        client, url, extra_headers=cond_headers, params=params
+    )
 
     if first_resp is None:
         return None, None

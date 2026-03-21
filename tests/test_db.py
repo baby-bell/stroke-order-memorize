@@ -27,7 +27,9 @@ class TestDatabaseClass:
 
 class TestSchema:
     def test_tables_created(self, fresh_db):
-        cursor = fresh_db.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        cursor = fresh_db.conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        )
         tables = {row[0] for row in cursor}
         assert tables == {
             "characters",
@@ -234,7 +236,9 @@ class TestGetNewKanjiOrder:
 
         # Run 5 times — if order is random, at least one should differ
         results = [tuple(fresh_db.get_new_kanji(now)) for _ in range(5)]
-        assert len(set(results)) > 1, "get_new_kanji returned identical order every time"
+        assert (
+            len(set(results)) > 1
+        ), "get_new_kanji returned identical order every time"
 
 
 class TestSubjectCache:
