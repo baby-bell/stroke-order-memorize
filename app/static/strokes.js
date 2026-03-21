@@ -20,6 +20,10 @@ function initStrokes(total) {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowLeft') { e.preventDefault(); prevStroke(); }
     if (e.key === 'ArrowRight') { e.preventDefault(); nextStroke(); }
+    if (['1','2','3','4'].includes(e.key)) {
+      const btn = document.querySelector(`.rating-btn[hx-vals='{"rating": "${e.key}"}']`);
+      if (btn && !btn.disabled) { e.preventDefault(); btn.click(); }
+    }
   }, { signal: _keyController.signal });
 }
 
