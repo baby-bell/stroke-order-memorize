@@ -3,6 +3,8 @@ from datetime import datetime
 
 from fsrs import Card, State
 
+from app.models import SyncMeta
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS characters (
     kanji       TEXT NOT NULL PRIMARY KEY,
@@ -167,18 +169,18 @@ class Database:
         )
         self.conn.commit()
 
-    def get_sync_meta(self, endpoint: str) -> dict | None:
+    def get_sync_meta(self, endpoint: str) -> SyncMeta | None:
         row = self.conn.execute(
             "SELECT synced_at, etag, last_modified FROM sync_meta WHERE endpoint = ?",
             (endpoint,),
         ).fetchone()
         if row is None:
             return None
-        return {
-            "synced_at": row["synced_at"],
-            "etag": row["etag"],
-            "last_modified": row["last_modified"],
-        }
+        return SyncMeta(
+            synced_at=row["synced_at"],
+            etag=row["etag"],
+            last_modified=row["last_modified"],
+        )
 
     def set_sync_meta(
         self,

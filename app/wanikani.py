@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 
 import httpx
 
+from app.models import ResponseMeta, SyncMeta
+
 _WANIKANI_BASE = "https://api.wanikani.com"
 
 
@@ -102,25 +104,25 @@ async def fetch_user(client: httpx.AsyncClient) -> dict:
 
 async def fetch_subjects(
     client: httpx.AsyncClient,
-    sync_meta: dict | None = None,
-) -> tuple[dict[int, tuple[str, int]] | None, dict | None]:
+    sync_meta: SyncMeta | None = None,
+) -> tuple[dict[int, tuple[str, int]] | None, ResponseMeta | None]:
     """Fetch kanji subjects from WaniKani, respecting conditional request headers.
 
     Returns (level_map, response_meta) where:
     - level_map is {subject_id: (kanji, level)} or None on 304
-    - response_meta is {"etag": ..., "last_modified": ...} or None on 304
+    - response_meta is ResponseMeta or None on 304
     """
     cond_headers: dict[str, str] = {}
     if sync_meta:
-        if sync_meta["etag"]:
-            cond_headers["If-None-Match"] = sync_meta["etag"]
-        if sync_meta["last_modified"]:
-            cond_headers["If-Modified-Since"] = sync_meta["last_modified"]
+        if sync_meta.etag:
+            cond_headers["If-None-Match"] = sync_meta.etag
+        if sync_meta.last_modified:
+            cond_headers["If-Modified-Since"] = sync_meta.last_modified
 
     url = f"{_WANIKANI_BASE}/v2/subjects"
     params = {"types": "kanji"}
     if sync_meta:
-        params["updated_after"] = sync_meta["synced_at"]
+        params["updated_after"] = sync_meta.synced_at
 
     first_resp = await _request_with_retry(
         client, url, extra_headers=cond_headers, params=params
@@ -134,34 +136,34 @@ async def fetch_subjects(
         item["id"]: (item["data"]["characters"], item["data"]["level"])
         for item in items
     }
-    response_meta = {
-        "etag": first_resp.headers.get("etag"),
-        "last_modified": first_resp.headers.get("last-modified"),
-    }
+    response_meta = ResponseMeta(
+        etag=first_resp.headers.get("etag"),
+        last_modified=first_resp.headers.get("last-modified"),
+    )
     return level_map, response_meta
 
 
 async def fetch_passed_assignments(
     client: httpx.AsyncClient,
-    sync_meta: dict | None = None,
-) -> tuple[list[int] | None, dict | None]:
+    sync_meta: SyncMeta | None = None,
+) -> tuple[list[int] | None, ResponseMeta | None]:
     """Fetch passed kanji assignments from WaniKani.
 
     Returns (passed_ids, response_meta) where:
     - passed_ids is [subject_id, ...] or None on 304
-    - response_meta is {"etag": ..., "last_modified": ...} or None on 304
+    - response_meta is ResponseMeta or None on 304
     """
     cond_headers: dict[str, str] = {}
     if sync_meta:
-        if sync_meta["etag"]:
-            cond_headers["If-None-Match"] = sync_meta["etag"]
-        if sync_meta["last_modified"]:
-            cond_headers["If-Modified-Since"] = sync_meta["last_modified"]
+        if sync_meta.etag:
+            cond_headers["If-None-Match"] = sync_meta.etag
+        if sync_meta.last_modified:
+            cond_headers["If-Modified-Since"] = sync_meta.last_modified
 
     url = f"{_WANIKANI_BASE}/v2/assignments"
     params = {"subject_type": "kanji", "passed_at": "true"}
     if sync_meta:
-        params["updated_after"] = sync_meta["synced_at"]
+        params["updated_after"] = sync_meta.synced_at
 
     first_resp = await _request_with_retry(
         client, url, extra_headers=cond_headers, params=params
@@ -172,8 +174,8 @@ async def fetch_passed_assignments(
 
     items = await _paginate_from_response(client, first_resp)
     passed_ids = [item["data"]["subject_id"] for item in items]
-    response_meta = {
-        "etag": first_resp.headers.get("etag"),
-        "last_modified": first_resp.headers.get("last-modified"),
-    }
+    response_meta = ResponseMeta(
+        etag=first_resp.headers.get("etag"),
+        last_modified=first_resp.headers.get("last-modified"),
+    )
     return passed_ids, response_meta

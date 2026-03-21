@@ -80,7 +80,12 @@ async def do_sync(request: Request, db: Database = Depends(get_db)):
                 db.upsert_cached_subjects(level_map)
                 level_map = db.get_cached_subjects()  # re-read full merged cache
                 if new_subjects_meta:
-                    db.set_sync_meta("subjects", now, **new_subjects_meta)
+                    db.set_sync_meta(
+                        "subjects",
+                        now,
+                        etag=new_subjects_meta.etag,
+                        last_modified=new_subjects_meta.last_modified,
+                    )
 
             # Fetch assignments (with conditional request support)
             assignments_meta = db.get_sync_meta("assignments")
@@ -93,7 +98,12 @@ async def do_sync(request: Request, db: Database = Depends(get_db)):
                 return HTMLResponse("<p>Synced 0 kanji.</p>")
 
             if new_assignments_meta:
-                db.set_sync_meta("assignments", now, **new_assignments_meta)
+                db.set_sync_meta(
+                    "assignments",
+                    now,
+                    etag=new_assignments_meta.etag,
+                    last_modified=new_assignments_meta.last_modified,
+                )
 
             # Pure core: decide what to persist
             synced = process_sync_results(passed_ids, level_map)

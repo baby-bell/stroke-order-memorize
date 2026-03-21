@@ -200,29 +200,29 @@ class TestSyncMeta:
         )
         meta = fresh_db.get_sync_meta("subjects")
         assert meta is not None
-        assert meta["synced_at"] == "2024-01-01T00:00:00+00:00"
-        assert meta["etag"] == '"abc"'
-        assert meta["last_modified"] == "Wed, 01 Jan 2025 00:00:00 GMT"
+        assert meta.synced_at == "2024-01-01T00:00:00+00:00"
+        assert meta.etag == '"abc"'
+        assert meta.last_modified == "Wed, 01 Jan 2025 00:00:00 GMT"
 
     def test_set_sync_meta_without_etag(self, fresh_db):
         fresh_db.set_sync_meta("assignments", "2024-06-01T00:00:00+00:00")
         meta = fresh_db.get_sync_meta("assignments")
         assert meta is not None
-        assert meta["etag"] is None
-        assert meta["last_modified"] is None
+        assert meta.etag is None
+        assert meta.last_modified is None
 
     def test_set_sync_meta_overwrites_existing(self, fresh_db):
         fresh_db.set_sync_meta("subjects", "2024-01-01T00:00:00+00:00", etag='"old"')
         fresh_db.set_sync_meta("subjects", "2025-01-01T00:00:00+00:00", etag='"new"')
         meta = fresh_db.get_sync_meta("subjects")
-        assert meta["synced_at"] == "2025-01-01T00:00:00+00:00"
-        assert meta["etag"] == '"new"'
+        assert meta.synced_at == "2025-01-01T00:00:00+00:00"
+        assert meta.etag == '"new"'
 
     def test_different_endpoints_stored_independently(self, fresh_db):
         fresh_db.set_sync_meta("subjects", "2024-01-01T00:00:00+00:00", etag='"s1"')
         fresh_db.set_sync_meta("assignments", "2024-06-01T00:00:00+00:00", etag='"a1"')
-        assert fresh_db.get_sync_meta("subjects")["etag"] == '"s1"'
-        assert fresh_db.get_sync_meta("assignments")["etag"] == '"a1"'
+        assert fresh_db.get_sync_meta("subjects").etag == '"s1"'
+        assert fresh_db.get_sync_meta("assignments").etag == '"a1"'
 
 
 class TestGetNewKanjiOrder:

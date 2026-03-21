@@ -4,6 +4,7 @@ import pytest
 import respx
 import httpx
 from datetime import datetime, timezone
+from app.models import SyncMeta
 from app.wanikani import (
     fetch_user,
     fetch_subjects,
@@ -60,18 +61,18 @@ async def test_fetch_subjects_returns_level_map(wk_client):
     )
     level_map, meta = await fetch_subjects(wk_client)
     assert level_map == {440: ("一", 1)}
-    assert meta["etag"] == '"s-etag"'
-    assert meta["last_modified"] == "Mon, 01 Jan 2024 00:00:00 GMT"
+    assert meta.etag == '"s-etag"'
+    assert meta.last_modified == "Mon, 01 Jan 2024 00:00:00 GMT"
 
 
 @respx.mock
 @pytest.mark.asyncio
 async def test_fetch_subjects_returns_none_on_304(wk_client):
-    prior = {
-        "synced_at": "2024-01-01T00:00:00+00:00",
-        "etag": '"old"',
-        "last_modified": None,
-    }
+    prior = SyncMeta(
+        synced_at="2024-01-01T00:00:00+00:00",
+        etag='"old"',
+        last_modified=None,
+    )
     respx.get(url__startswith=f"{BASE}/v2/subjects").mock(
         return_value=httpx.Response(304)
     )
@@ -83,11 +84,11 @@ async def test_fetch_subjects_returns_none_on_304(wk_client):
 @respx.mock
 @pytest.mark.asyncio
 async def test_fetch_subjects_sends_conditional_headers(wk_client):
-    prior = {
-        "synced_at": "2024-01-01T00:00:00+00:00",
-        "etag": '"my-etag"',
-        "last_modified": "Mon, 01 Jan 2024 00:00:00 GMT",
-    }
+    prior = SyncMeta(
+        synced_at="2024-01-01T00:00:00+00:00",
+        etag='"my-etag"',
+        last_modified="Mon, 01 Jan 2024 00:00:00 GMT",
+    )
     route = respx.get(url__startswith=f"{BASE}/v2/subjects").mock(
         return_value=httpx.Response(200, json=_SUBJECTS_PAGE)
     )
@@ -100,11 +101,11 @@ async def test_fetch_subjects_sends_conditional_headers(wk_client):
 @respx.mock
 @pytest.mark.asyncio
 async def test_fetch_subjects_appends_updated_after(wk_client):
-    prior = {
-        "synced_at": "2024-01-01T00:00:00+00:00",
-        "etag": None,
-        "last_modified": None,
-    }
+    prior = SyncMeta(
+        synced_at="2024-01-01T00:00:00+00:00",
+        etag=None,
+        last_modified=None,
+    )
     route = respx.get(url__startswith=f"{BASE}/v2/subjects").mock(
         return_value=httpx.Response(200, json={"pages": {"next_url": None}, "data": []})
     )
@@ -119,11 +120,11 @@ async def test_fetch_subjects_appends_updated_after(wk_client):
 @pytest.mark.asyncio
 async def test_fetch_subjects_url_encodes_updated_after(wk_client):
     """updated_after with '+' in timezone must be properly URL-encoded."""
-    prior = {
-        "synced_at": "2024-01-01T00:00:00+00:00",
-        "etag": None,
-        "last_modified": None,
-    }
+    prior = SyncMeta(
+        synced_at="2024-01-01T00:00:00+00:00",
+        etag=None,
+        last_modified=None,
+    )
     route = respx.get(url__startswith=f"{BASE}/v2/subjects").mock(
         return_value=httpx.Response(200, json={"pages": {"next_url": None}, "data": []})
     )
@@ -145,17 +146,17 @@ async def test_fetch_passed_assignments_returns_ids(wk_client):
     )
     ids, meta = await fetch_passed_assignments(wk_client)
     assert ids == [440]
-    assert meta["etag"] == '"a-etag"'
+    assert meta.etag == '"a-etag"'
 
 
 @respx.mock
 @pytest.mark.asyncio
 async def test_fetch_passed_assignments_returns_none_on_304(wk_client):
-    prior = {
-        "synced_at": "2024-01-01T00:00:00+00:00",
-        "etag": '"old"',
-        "last_modified": None,
-    }
+    prior = SyncMeta(
+        synced_at="2024-01-01T00:00:00+00:00",
+        etag='"old"',
+        last_modified=None,
+    )
     respx.get(url__startswith=f"{BASE}/v2/assignments").mock(
         return_value=httpx.Response(304)
     )
@@ -167,11 +168,11 @@ async def test_fetch_passed_assignments_returns_none_on_304(wk_client):
 @respx.mock
 @pytest.mark.asyncio
 async def test_fetch_passed_assignments_sends_conditional_headers(wk_client):
-    prior = {
-        "synced_at": "2024-01-01T00:00:00+00:00",
-        "etag": '"a-etag"',
-        "last_modified": "Wed, 01 Jan 2025 00:00:00 GMT",
-    }
+    prior = SyncMeta(
+        synced_at="2024-01-01T00:00:00+00:00",
+        etag='"a-etag"',
+        last_modified="Wed, 01 Jan 2025 00:00:00 GMT",
+    )
     route = respx.get(url__startswith=f"{BASE}/v2/assignments").mock(
         return_value=httpx.Response(200, json=_ASSIGNMENTS_PAGE)
     )
