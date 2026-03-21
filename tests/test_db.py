@@ -4,8 +4,8 @@ from fsrs import Card, State
 from app.db import Database
 
 
-def now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+def now_utc() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class TestDatabaseClass:
@@ -42,30 +42,30 @@ class TestSchema:
 
 class TestUpsertCharacter:
     def test_inserts_new_character(self, fresh_db):
-        fresh_db.upsert_character("一", 1, now_iso())
+        fresh_db.upsert_character("一", 1, now_utc())
         row = fresh_db.conn.execute(
             "SELECT kanji, wk_level FROM characters WHERE kanji = '一'"
         ).fetchone()
         assert tuple(row) == ("一", 1)
 
     def test_updates_existing_character(self, fresh_db):
-        ts1 = "2024-01-01T00:00:00+00:00"
-        ts2 = "2025-01-01T00:00:00+00:00"
+        ts1 = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        ts2 = datetime(2025, 1, 1, tzinfo=timezone.utc)
         fresh_db.upsert_character("一", 1, ts1)
         fresh_db.upsert_character("一", 1, ts2)
         row = fresh_db.conn.execute(
             "SELECT synced_at FROM characters WHERE kanji = '一'"
         ).fetchone()
-        assert row[0] == ts2
+        assert row[0] == ts2.isoformat()
 
     def test_rejects_invalid_level(self, fresh_db):
         with pytest.raises(Exception):
-            fresh_db.upsert_character("一", 61, now_iso())
+            fresh_db.upsert_character("一", 61, now_utc())
 
 
 class TestInsertCardIfNew:
     def test_inserts_card_for_new_kanji(self, fresh_db):
-        fresh_db.upsert_character("一", 1, now_iso())
+        fresh_db.upsert_character("一", 1, now_utc())
         fresh_db.insert_card_if_new("一")
         row = fresh_db.conn.execute(
             "SELECT state, stability, difficulty FROM cards WHERE kanji = '一'"
@@ -75,7 +75,7 @@ class TestInsertCardIfNew:
         assert row[2] is None  # difficulty NULL
 
     def test_does_not_overwrite_existing_card(self, fresh_db):
-        fresh_db.upsert_character("一", 1, now_iso())
+        fresh_db.upsert_character("一", 1, now_utc())
         fresh_db.insert_card_if_new("一")
         fresh_db.conn.execute("UPDATE cards SET stability = 9.5 WHERE kanji = '一'")
         fresh_db.conn.commit()
@@ -88,66 +88,58 @@ class TestInsertCardIfNew:
 
 class TestGetReviewKanji:
     def test_returns_reviewed_due_kanji(self, fresh_db):
-        fresh_db.upsert_character("一", 1, now_iso())
+        fresh_db.upsert_character("一", 1, now_utc())
         fresh_db.insert_card_if_new("一")
         fresh_db.conn.execute(
             "UPDATE cards SET last_review = ? WHERE kanji = '一'",
-            (now_iso(),),
+            (now_utc().isoformat(),),
         )
         fresh_db.conn.commit()
-        now = datetime.now(timezone.utc).isoformat()
-        assert "一" in fresh_db.get_review_kanji(now)
+        assert "一" in fresh_db.get_review_kanji(now_utc())
 
     def test_excludes_new_cards(self, fresh_db):
-        fresh_db.upsert_character("一", 1, now_iso())
+        fresh_db.upsert_character("一", 1, now_utc())
         fresh_db.insert_card_if_new("一")
-        now = datetime.now(timezone.utc).isoformat()
-        assert fresh_db.get_review_kanji(now) == []
+        assert fresh_db.get_review_kanji(now_utc()) == []
 
 
 class TestGetNewKanji:
     def test_returns_new_due_kanji(self, fresh_db):
-        fresh_db.upsert_character("一", 1, now_iso())
+        fresh_db.upsert_character("一", 1, now_utc())
         fresh_db.insert_card_if_new("一")
-        now = datetime.now(timezone.utc).isoformat()
-        assert "一" in fresh_db.get_new_kanji(now)
+        assert "一" in fresh_db.get_new_kanji(now_utc())
 
     def test_excludes_future_cards(self, fresh_db):
-        fresh_db.upsert_character("一", 1, now_iso())
+        fresh_db.upsert_character("一", 1, now_utc())
         fresh_db.insert_card_if_new("一")
         fresh_db.conn.execute(
             "UPDATE cards SET due = '2099-01-01T00:00:00+00:00' WHERE kanji = '一'"
         )
         fresh_db.conn.commit()
-        now = datetime.now(timezone.utc).isoformat()
-        assert fresh_db.get_new_kanji(now) == []
+        assert fresh_db.get_new_kanji(now_utc()) == []
 
 
 class TestCountNewIntroducedToday:
     def test_counts_first_reviews_today(self, fresh_db):
-        fresh_db.upsert_character("一", 1, now_iso())
-        fresh_db.insert_review("一", 3, now_iso())
-        today_start = (
-            datetime.now(timezone.utc)
-            .replace(hour=0, minute=0, second=0, microsecond=0)
-            .isoformat()
+        fresh_db.upsert_character("一", 1, now_utc())
+        fresh_db.insert_review("一", 3, now_utc())
+        today_start = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
         )
         assert fresh_db.count_new_introduced_today(today_start) == 1
 
     def test_ignores_old_reviews(self, fresh_db):
-        fresh_db.upsert_character("一", 1, now_iso())
-        fresh_db.insert_review("一", 3, "2020-01-01T00:00:00+00:00")
-        today_start = (
-            datetime.now(timezone.utc)
-            .replace(hour=0, minute=0, second=0, microsecond=0)
-            .isoformat()
+        fresh_db.upsert_character("一", 1, now_utc())
+        fresh_db.insert_review("一", 3, datetime(2020, 1, 1, tzinfo=timezone.utc))
+        today_start = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
         )
         assert fresh_db.count_new_introduced_today(today_start) == 0
 
 
 class TestGetCard:
     def test_returns_fsrs_card(self, fresh_db):
-        fresh_db.upsert_character("一", 1, now_iso())
+        fresh_db.upsert_character("一", 1, now_utc())
         fresh_db.insert_card_if_new("一")
         card = fresh_db.get_card("一")
         assert isinstance(card, Card)
@@ -161,7 +153,7 @@ class TestUpdateCard:
     def test_persists_updated_card(self, fresh_db):
         from fsrs import Scheduler, Rating
 
-        fresh_db.upsert_character("一", 1, now_iso())
+        fresh_db.upsert_character("一", 1, now_utc())
         fresh_db.insert_card_if_new("一")
         card = fresh_db.get_card("一")
         scheduler = Scheduler()
@@ -174,17 +166,17 @@ class TestUpdateCard:
 
 class TestInsertReview:
     def test_inserts_review_row(self, fresh_db):
-        fresh_db.upsert_character("一", 1, now_iso())
-        fresh_db.insert_review("一", 3, now_iso())
+        fresh_db.upsert_character("一", 1, now_utc())
+        fresh_db.insert_review("一", 3, now_utc())
         row = fresh_db.conn.execute(
             "SELECT kanji, rating FROM reviews WHERE kanji = '一'"
         ).fetchone()
         assert tuple(row) == ("一", 3)
 
     def test_rejects_invalid_rating(self, fresh_db):
-        fresh_db.upsert_character("一", 1, now_iso())
+        fresh_db.upsert_character("一", 1, now_utc())
         with pytest.raises(Exception):
-            fresh_db.insert_review("一", 5, now_iso())
+            fresh_db.insert_review("一", 5, now_utc())
 
 
 class TestSyncMeta:
@@ -192,35 +184,37 @@ class TestSyncMeta:
         assert fresh_db.get_sync_meta("subjects") is None
 
     def test_set_and_get_sync_meta(self, fresh_db):
+        ts = datetime(2024, 1, 1, tzinfo=timezone.utc)
         fresh_db.set_sync_meta(
             "subjects",
-            "2024-01-01T00:00:00+00:00",
+            ts,
             etag='"abc"',
             last_modified="Wed, 01 Jan 2025 00:00:00 GMT",
         )
         meta = fresh_db.get_sync_meta("subjects")
         assert meta is not None
-        assert meta.synced_at == "2024-01-01T00:00:00+00:00"
+        assert meta.synced_at == ts
         assert meta.etag == '"abc"'
         assert meta.last_modified == "Wed, 01 Jan 2025 00:00:00 GMT"
 
     def test_set_sync_meta_without_etag(self, fresh_db):
-        fresh_db.set_sync_meta("assignments", "2024-06-01T00:00:00+00:00")
+        ts = datetime(2024, 6, 1, tzinfo=timezone.utc)
+        fresh_db.set_sync_meta("assignments", ts)
         meta = fresh_db.get_sync_meta("assignments")
         assert meta is not None
         assert meta.etag is None
         assert meta.last_modified is None
 
     def test_set_sync_meta_overwrites_existing(self, fresh_db):
-        fresh_db.set_sync_meta("subjects", "2024-01-01T00:00:00+00:00", etag='"old"')
-        fresh_db.set_sync_meta("subjects", "2025-01-01T00:00:00+00:00", etag='"new"')
+        fresh_db.set_sync_meta("subjects", datetime(2024, 1, 1, tzinfo=timezone.utc), etag='"old"')
+        fresh_db.set_sync_meta("subjects", datetime(2025, 1, 1, tzinfo=timezone.utc), etag='"new"')
         meta = fresh_db.get_sync_meta("subjects")
-        assert meta.synced_at == "2025-01-01T00:00:00+00:00"
+        assert meta.synced_at == datetime(2025, 1, 1, tzinfo=timezone.utc)
         assert meta.etag == '"new"'
 
     def test_different_endpoints_stored_independently(self, fresh_db):
-        fresh_db.set_sync_meta("subjects", "2024-01-01T00:00:00+00:00", etag='"s1"')
-        fresh_db.set_sync_meta("assignments", "2024-06-01T00:00:00+00:00", etag='"a1"')
+        fresh_db.set_sync_meta("subjects", datetime(2024, 1, 1, tzinfo=timezone.utc), etag='"s1"')
+        fresh_db.set_sync_meta("assignments", datetime(2024, 6, 1, tzinfo=timezone.utc), etag='"a1"')
         assert fresh_db.get_sync_meta("subjects").etag == '"s1"'
         assert fresh_db.get_sync_meta("assignments").etag == '"a1"'
 
@@ -228,7 +222,7 @@ class TestSyncMeta:
 class TestGetNewKanjiOrder:
     def test_new_kanji_not_always_in_insertion_order(self, fresh_db):
         """New kanji should be returned in random order, not insertion order."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc)
         kanji_list = [chr(0x4E00 + i) for i in range(20)]  # 20 kanji
         for k in kanji_list:
             fresh_db.upsert_character(k, 1, now)

@@ -32,11 +32,9 @@ def get_db(request: Request) -> Database:
     return request.app.state.db
 
 
-def _today_start_iso() -> str:
-    return (
-        datetime.now(timezone.utc)
-        .replace(hour=0, minute=0, second=0, microsecond=0)
-        .isoformat()
+def _today_start() -> datetime:
+    return datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
     )
 
 
@@ -48,11 +46,11 @@ def _queue(session_id: str | None) -> list[str]:
 
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request, db: Database = Depends(get_db)):
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
     total, new = compute_due_count(
         review_count=db.count_review_due(now),
         new_available=db.count_new_due(now),
-        new_today_count=db.count_new_introduced_today(_today_start_iso()),
+        new_today_count=db.count_new_introduced_today(_today_start()),
         daily_limit=_NEW_CARDS_PER_DAY,
     )
     return templates.TemplateResponse(
@@ -67,7 +65,7 @@ async def do_sync(request: Request, db: Database = Depends(get_db)):
         return HTMLResponse("<p>Error: WANIKANI_API_KEY not set in .env</p>")
     try:
         async with make_client(api_key) as client:
-            now = datetime.now(timezone.utc).isoformat()
+            now = datetime.now(timezone.utc)
 
             # Fetch subjects (with conditional request support)
             subjects_meta = db.get_sync_meta("subjects")
@@ -124,11 +122,11 @@ async def start_session(
     db: Database = Depends(get_db),
     session_id: str | None = Cookie(default=None),
 ):
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
     due = select_due_cards(
         review_kanji=db.get_review_kanji(now),
         new_kanji=db.get_new_kanji(now),
-        new_today_count=db.count_new_introduced_today(_today_start_iso()),
+        new_today_count=db.count_new_introduced_today(_today_start()),
         daily_limit=_NEW_CARDS_PER_DAY,
     )
     if not due:
@@ -185,7 +183,7 @@ async def session_review(
 
     # Shell: persist
     db.update_card(kanji, updated_card)
-    db.insert_review(kanji, rating, datetime.now(timezone.utc).isoformat())
+    db.insert_review(kanji, rating, datetime.now(timezone.utc))
 
     # Requeue "Again" cards back into the session
     pos = requeue_position(rating, len(queue))
@@ -194,11 +192,11 @@ async def session_review(
 
     if not queue:
         # Re-check for cards that became due during the session
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc)
         newly_due = select_due_cards(
             review_kanji=db.get_review_kanji(now),
             new_kanji=db.get_new_kanji(now),
-            new_today_count=db.count_new_introduced_today(_today_start_iso()),
+            new_today_count=db.count_new_introduced_today(_today_start()),
             daily_limit=_NEW_CARDS_PER_DAY,
         )
         if newly_due:

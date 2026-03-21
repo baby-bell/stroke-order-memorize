@@ -55,7 +55,7 @@ class Database:
     def close(self) -> None:
         self.conn.close()
 
-    def upsert_character(self, kanji: str, wk_level: int, synced_at: str) -> None:
+    def upsert_character(self, kanji: str, wk_level: int, synced_at: datetime) -> None:
         self.conn.execute(
             """
             INSERT INTO characters (kanji, wk_level, synced_at)
@@ -64,7 +64,7 @@ class Database:
                 wk_level  = excluded.wk_level,
                 synced_at = excluded.synced_at
             """,
-            (kanji, wk_level, synced_at),
+            (kanji, wk_level, synced_at.isoformat()),
         )
         self.conn.commit()
 
@@ -75,39 +75,39 @@ class Database:
         )
         self.conn.commit()
 
-    def get_review_kanji(self, now: str) -> list[str]:
+    def get_review_kanji(self, now: datetime) -> list[str]:
         """Return kanji with due <= now that have been reviewed before."""
         rows = self.conn.execute(
             "SELECT kanji FROM cards WHERE due <= ? AND last_review IS NOT NULL",
-            (now,),
+            (now.isoformat(),),
         ).fetchall()
         return [row["kanji"] for row in rows]
 
-    def get_new_kanji(self, now: str) -> list[str]:
+    def get_new_kanji(self, now: datetime) -> list[str]:
         """Return kanji with due <= now that have never been reviewed."""
         rows = self.conn.execute(
             "SELECT kanji FROM cards WHERE due <= ? AND last_review IS NULL ORDER BY RANDOM()",
-            (now,),
+            (now.isoformat(),),
         ).fetchall()
         return [row["kanji"] for row in rows]
 
-    def count_review_due(self, now: str) -> int:
+    def count_review_due(self, now: datetime) -> int:
         """Count review cards due by the given time."""
         row = self.conn.execute(
             "SELECT COUNT(*) FROM cards WHERE due <= ? AND last_review IS NOT NULL",
-            (now,),
+            (now.isoformat(),),
         ).fetchone()
         return row[0]
 
-    def count_new_due(self, now: str) -> int:
+    def count_new_due(self, now: datetime) -> int:
         """Count new cards due by the given time."""
         row = self.conn.execute(
             "SELECT COUNT(*) FROM cards WHERE due <= ? AND last_review IS NULL",
-            (now,),
+            (now.isoformat(),),
         ).fetchone()
         return row[0]
 
-    def count_new_introduced_today(self, today_start: str) -> int:
+    def count_new_introduced_today(self, today_start: datetime) -> int:
         """Count kanji whose first-ever review happened on or after today_start."""
         row = self.conn.execute(
             """
@@ -117,7 +117,7 @@ class Database:
                 HAVING MIN(reviewed_at) >= ?
             )
             """,
-            (today_start,),
+            (today_start.isoformat(),),
         ).fetchone()
         return row[0]
 
@@ -162,10 +162,10 @@ class Database:
             raise ValueError(f"No card found for kanji: {kanji!r}")
         self.conn.commit()
 
-    def insert_review(self, kanji: str, rating: int, reviewed_at: str) -> None:
+    def insert_review(self, kanji: str, rating: int, reviewed_at: datetime) -> None:
         self.conn.execute(
             "INSERT INTO reviews (kanji, rating, reviewed_at) VALUES (?, ?, ?)",
-            (kanji, rating, reviewed_at),
+            (kanji, rating, reviewed_at.isoformat()),
         )
         self.conn.commit()
 
@@ -177,7 +177,7 @@ class Database:
         if row is None:
             return None
         return SyncMeta(
-            synced_at=row["synced_at"],
+            synced_at=datetime.fromisoformat(row["synced_at"]),
             etag=row["etag"],
             last_modified=row["last_modified"],
         )
@@ -185,7 +185,7 @@ class Database:
     def set_sync_meta(
         self,
         endpoint: str,
-        synced_at: str,
+        synced_at: datetime,
         etag: str | None = None,
         last_modified: str | None = None,
     ) -> None:
@@ -198,7 +198,7 @@ class Database:
                 etag          = excluded.etag,
                 last_modified = excluded.last_modified
             """,
-            (endpoint, synced_at, etag, last_modified),
+            (endpoint, synced_at.isoformat(), etag, last_modified),
         )
         self.conn.commit()
 

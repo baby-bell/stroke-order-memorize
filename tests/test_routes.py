@@ -11,8 +11,8 @@ from app.db import Database
 from app.routes import get_db
 
 
-def now_iso():
-    return datetime.now(timezone.utc).isoformat()
+def now_utc():
+    return datetime.now(timezone.utc)
 
 
 @pytest_asyncio.fixture
@@ -56,7 +56,7 @@ async def test_session_redirects_to_done_when_no_due_cards(client):
 
 @pytest.mark.asyncio
 async def test_session_redirects_to_card_when_cards_due(client, fresh_db):
-    fresh_db.upsert_character("一", 1, now_iso())
+    fresh_db.upsert_character("一", 1, now_utc())
     fresh_db.insert_card_if_new("一")
     resp = await client.get("/session", follow_redirects=False)
     assert resp.status_code == 303
@@ -65,7 +65,7 @@ async def test_session_redirects_to_card_when_cards_due(client, fresh_db):
 
 @pytest.mark.asyncio
 async def test_session_card_displays_kanji(client, fresh_db):
-    fresh_db.upsert_character("一", 1, now_iso())
+    fresh_db.upsert_character("一", 1, now_utc())
     fresh_db.insert_card_if_new("一")
     await client.get("/session", follow_redirects=True)
     resp = await client.get("/session/card")
@@ -75,7 +75,7 @@ async def test_session_card_displays_kanji(client, fresh_db):
 
 @pytest.mark.asyncio
 async def test_session_strokes_returns_svg_paths(client, fresh_db):
-    fresh_db.upsert_character("一", 1, now_iso())
+    fresh_db.upsert_character("一", 1, now_utc())
     fresh_db.insert_card_if_new("一")
     await client.get("/session", follow_redirects=True)
     resp = await client.get("/session/strokes")
@@ -87,7 +87,7 @@ async def test_session_strokes_returns_svg_paths(client, fresh_db):
 @pytest.mark.asyncio
 async def test_session_review_valid_rating_advances_queue(client, fresh_db):
     for kanji in ["一", "二"]:
-        fresh_db.upsert_character(kanji, 1, now_iso())
+        fresh_db.upsert_character(kanji, 1, now_utc())
         fresh_db.insert_card_if_new(kanji)
     await client.get("/session", follow_redirects=True)
     resp = await client.post("/session/review", data={"rating": "3"})
@@ -99,7 +99,7 @@ async def test_session_review_valid_rating_advances_queue(client, fresh_db):
 
 @pytest.mark.asyncio
 async def test_session_review_last_card_triggers_hx_redirect(client, fresh_db):
-    fresh_db.upsert_character("一", 1, now_iso())
+    fresh_db.upsert_character("一", 1, now_utc())
     fresh_db.insert_card_if_new("一")
     await client.get("/session", follow_redirects=True)
     resp = await client.post("/session/review", data={"rating": "3"})
@@ -119,7 +119,7 @@ async def test_home_shows_new_count(client, fresh_db, monkeypatch):
 
     monkeypatch.setattr(routes, "_NEW_CARDS_PER_DAY", 1)
     for kanji in ["一", "二", "三"]:
-        fresh_db.upsert_character(kanji, 1, now_iso())
+        fresh_db.upsert_character(kanji, 1, now_utc())
         fresh_db.insert_card_if_new(kanji)
     resp = await client.get("/")
     assert "1 new" in resp.text
@@ -129,7 +129,7 @@ async def test_home_shows_new_count(client, fresh_db, monkeypatch):
 async def test_session_review_again_requeues_card(client, fresh_db):
     """Rating 'Again' should re-insert the card into the session queue."""
     for kanji in ["一", "二", "三"]:
-        fresh_db.upsert_character(kanji, 1, now_iso())
+        fresh_db.upsert_character(kanji, 1, now_utc())
         fresh_db.insert_card_if_new(kanji)
     await client.get("/session", follow_redirects=True)
 
@@ -160,7 +160,7 @@ async def test_session_review_again_requeues_card(client, fresh_db):
 
 @pytest.mark.asyncio
 async def test_session_card_has_go_home_link(client, fresh_db):
-    fresh_db.upsert_character("一", 1, now_iso())
+    fresh_db.upsert_character("一", 1, now_utc())
     fresh_db.insert_card_if_new("一")
     await client.get("/session", follow_redirects=True)
     resp = await client.get("/session/card")
@@ -170,7 +170,7 @@ async def test_session_card_has_go_home_link(client, fresh_db):
 
 @pytest.mark.asyncio
 async def test_session_card_show_strokes_has_id(client, fresh_db):
-    fresh_db.upsert_character("一", 1, now_iso())
+    fresh_db.upsert_character("一", 1, now_utc())
     fresh_db.insert_card_if_new("一")
     await client.get("/session", follow_redirects=True)
     resp = await client.get("/session/card")
@@ -179,7 +179,7 @@ async def test_session_card_show_strokes_has_id(client, fresh_db):
 
 @pytest.mark.asyncio
 async def test_session_strokes_has_prev_button(client, fresh_db):
-    fresh_db.upsert_character("一", 1, now_iso())
+    fresh_db.upsert_character("一", 1, now_utc())
     fresh_db.insert_card_if_new("一")
     await client.get("/session", follow_redirects=True)
     resp = await client.get("/session/strokes")
@@ -194,7 +194,7 @@ async def test_session_review_continues_when_cards_become_due_during_session(
     """When the queue empties but cards are now due again, session should continue."""
     from fsrs import Card, State
 
-    fresh_db.upsert_character("一", 1, now_iso())
+    fresh_db.upsert_character("一", 1, now_utc())
     fresh_db.insert_card_if_new("一")
     await client.get("/session", follow_redirects=True)
 
