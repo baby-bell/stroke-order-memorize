@@ -61,6 +61,7 @@ async def test_fetch_subjects_returns_level_map(wk_client):
     )
     level_map, meta = await fetch_subjects(wk_client)
     assert level_map == {440: ("一", 1)}
+    assert meta is not None
     assert meta.etag == '"s-etag"'
     assert meta.last_modified == "Mon, 01 Jan 2024 00:00:00 GMT"
 
@@ -69,7 +70,7 @@ async def test_fetch_subjects_returns_level_map(wk_client):
 @pytest.mark.asyncio
 async def test_fetch_subjects_returns_none_on_304(wk_client):
     prior = SyncMeta(
-        synced_at="2024-01-01T00:00:00+00:00",
+        synced_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
         etag='"old"',
         last_modified=None,
     )
@@ -85,7 +86,7 @@ async def test_fetch_subjects_returns_none_on_304(wk_client):
 @pytest.mark.asyncio
 async def test_fetch_subjects_sends_conditional_headers(wk_client):
     prior = SyncMeta(
-        synced_at="2024-01-01T00:00:00+00:00",
+        synced_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
         etag='"my-etag"',
         last_modified="Mon, 01 Jan 2024 00:00:00 GMT",
     )
@@ -102,7 +103,7 @@ async def test_fetch_subjects_sends_conditional_headers(wk_client):
 @pytest.mark.asyncio
 async def test_fetch_subjects_appends_updated_after(wk_client):
     prior = SyncMeta(
-        synced_at="2024-01-01T00:00:00+00:00",
+        synced_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
         etag=None,
         last_modified=None,
     )
@@ -121,7 +122,7 @@ async def test_fetch_subjects_appends_updated_after(wk_client):
 async def test_fetch_subjects_url_encodes_updated_after(wk_client):
     """updated_after with '+' in timezone must be properly URL-encoded."""
     prior = SyncMeta(
-        synced_at="2024-01-01T00:00:00+00:00",
+        synced_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
         etag=None,
         last_modified=None,
     )
@@ -146,6 +147,7 @@ async def test_fetch_passed_assignments_returns_ids(wk_client):
     )
     ids, meta = await fetch_passed_assignments(wk_client)
     assert ids == [440]
+    assert meta is not None
     assert meta.etag == '"a-etag"'
 
 
@@ -153,7 +155,7 @@ async def test_fetch_passed_assignments_returns_ids(wk_client):
 @pytest.mark.asyncio
 async def test_fetch_passed_assignments_returns_none_on_304(wk_client):
     prior = SyncMeta(
-        synced_at="2024-01-01T00:00:00+00:00",
+        synced_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
         etag='"old"',
         last_modified=None,
     )
@@ -169,7 +171,7 @@ async def test_fetch_passed_assignments_returns_none_on_304(wk_client):
 @pytest.mark.asyncio
 async def test_fetch_passed_assignments_sends_conditional_headers(wk_client):
     prior = SyncMeta(
-        synced_at="2024-01-01T00:00:00+00:00",
+        synced_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
         etag='"a-etag"',
         last_modified="Wed, 01 Jan 2025 00:00:00 GMT",
     )

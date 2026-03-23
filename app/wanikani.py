@@ -47,6 +47,7 @@ async def _request_with_retry(
 ) -> httpx.Response | None:
     """GET url with 429 retry (max 3 attempts). Returns None on 304, Response on success."""
     headers = extra_headers or {}
+    resp: httpx.Response | None = None
     for attempt in range(3):
         resp = await client.get(url, headers=headers, params=params)
         if resp.status_code == 304:
@@ -61,6 +62,7 @@ async def _request_with_retry(
             else:
                 wait = 2.0**attempt
             await asyncio.sleep(wait)
+    assert resp is not None
     resp.raise_for_status()
     return resp  # type: ignore[return-value]
 
@@ -122,7 +124,7 @@ async def fetch_subjects(
     url = f"{_WANIKANI_BASE}/v2/subjects"
     params = {"types": "kanji"}
     if sync_meta:
-        params["updated_after"] = sync_meta.synced_at
+        params["updated_after"] = sync_meta.synced_at.isoformat()
 
     first_resp = await _request_with_retry(
         client, url, extra_headers=cond_headers, params=params
@@ -163,7 +165,7 @@ async def fetch_passed_assignments(
     url = f"{_WANIKANI_BASE}/v2/assignments"
     params = {"subject_type": "kanji", "passed_at": "true"}
     if sync_meta:
-        params["updated_after"] = sync_meta.synced_at
+        params["updated_after"] = sync_meta.synced_at.isoformat()
 
     first_resp = await _request_with_retry(
         client, url, extra_headers=cond_headers, params=params
