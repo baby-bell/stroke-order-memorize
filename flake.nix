@@ -7,12 +7,18 @@
 
   outputs = { self, nixpkgs }:
     let
-      system = "x86_64-linux";
-      pkgs = import nixpkgs { inherit system; };
+      supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
+      forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
+      pkgsFor = system: import nixpkgs { inherit system; };
     in
     {
-      devShells.${system}.default = pkgs.mkShell {
-        packages = [ pkgs.just pkgs.pyright pkgs.uv ];
-      };
+      devShells = forAllSystems (system:
+        let pkgs = pkgsFor system; in
+        {
+          default = pkgs.mkShell {
+            packages = [ pkgs.just pkgs.pyright pkgs.uv ];
+          };
+        }
+      );
     };
 }
