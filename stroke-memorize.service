@@ -1,0 +1,15 @@
+[Unit]
+Description=stroke-memorize kanji stroke order app
+After=network.target
+
+[Service]
+Type=simple
+User=stroke-memorize
+WorkingDirectory=/var/lib/stroke-memorize
+EnvironmentFile=/var/lib/stroke-memorize/.env
+ExecStart=/usr/bin/uv run uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
