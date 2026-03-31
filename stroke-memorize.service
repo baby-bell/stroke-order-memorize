@@ -5,8 +5,8 @@ After=network.target
 [Service]
 Type=simple
 User=stroke-memorize
-WorkingDirectory=/var/lib/stroke-memorize
-EnvironmentFile=/var/lib/stroke-memorize/.env
+WorkingDirectory=/var/lib/stroke-memorize/stroke-order-memorize
+EnvironmentFile=/var/lib/stroke-memorize/stroke-order-memorize/.env
 ExecStart=/usr/bin/uv run uvicorn main:app --host 0.0.0.0 --port 8000
 Restart=on-failure
 RestartSec=5
