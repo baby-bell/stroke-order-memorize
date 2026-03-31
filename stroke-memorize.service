@@ -7,7 +7,7 @@ Type=simple
 User=stroke-memorize
 WorkingDirectory=/var/lib/stroke-memorize/stroke-order-memorize
 EnvironmentFile=/var/lib/stroke-memorize/stroke-order-memorize/.env
-ExecStart=/usr/bin/uv run uvicorn main:app --host 0.0.0.0 --port 8000
+ExecStart=/usr/local/bin/uv run uvicorn main:app --host 0.0.0.0 --port 8000
 Restart=on-failure
 RestartSec=5
 
@@ -15,7 +15,7 @@ RestartSec=5
 NoNewPrivileges=true
 ProtectHome=true
 ProtectSystem=strict
-ReadWritePaths=/var/lib/stroke-memorize/stroke-order-memorize %h/.cache/uv
+ReadWritePaths=/var/lib/stroke-memorize/stroke-order-memorize /var/lib/stroke-memorize/.cache/uv
 PrivateTmp=true
 PrivateDevices=true
 ProtectKernelTunables=true
