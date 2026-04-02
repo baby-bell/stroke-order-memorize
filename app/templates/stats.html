@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Statistics</h2>
+<table style="border-collapse:collapse; width:100%;">
+  <tr><td>Cards learned</td><td style="text-align:right">{{ learned }}</td></tr>
+  <tr><td>Cards remaining</td><td style="text-align:right">{{ unlearned }}</td></tr>
+  <tr><td>Total reviews</td><td style="text-align:right">{{ total_reviews }}</td></tr>
+  <tr><td>Sessions</td><td style="text-align:right">{{ session_count }}</td></tr>
+  <tr><td>Avg reviews per session</td><td style="text-align:right">{{ avg_session_reviews }}</td></tr>
+</table>
+<p><a href="/">&larr; Home</a></p>
+{% endblock %}

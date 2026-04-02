@@ -202,6 +202,52 @@ class Database:
                 (endpoint, synced_at.isoformat(), etag, last_modified),
             )
 
+    def get_stats(self) -> dict:
+        """Return aggregate statistics for the stats page."""
+        learned = self.conn.execute(
+            "SELECT COUNT(*) FROM cards WHERE last_review IS NOT NULL"
+        ).fetchone()[0]
+        unlearned = self.conn.execute(
+            "SELECT COUNT(*) FROM cards WHERE last_review IS NULL"
+        ).fetchone()[0]
+        total_reviews = self.conn.execute(
+            "SELECT COUNT(*) FROM reviews"
+        ).fetchone()[0]
+
+        # Estimate sessions by grouping reviews with <30 min gaps.
+        # A new session starts when reviewed_at is >30 min after the previous review.
+        rows = self.conn.execute(
+            "SELECT reviewed_at FROM reviews ORDER BY reviewed_at"
+        ).fetchall()
+        session_count = 0
+        session_lengths: list[int] = []  # reviews per session
+        if rows:
+            session_count = 1
+            cur_len = 1
+            prev = datetime.fromisoformat(rows[0]["reviewed_at"])
+            for row in rows[1:]:
+                t = datetime.fromisoformat(row["reviewed_at"])
+                if (t - prev).total_seconds() > 1800:
+                    session_lengths.append(cur_len)
+                    session_count += 1
+                    cur_len = 0
+                cur_len += 1
+                prev = t
+            session_lengths.append(cur_len)
+        avg_session = (
+            round(sum(session_lengths) / len(session_lengths), 1)
+            if session_lengths
+            else 0
+        )
+
+        return {
+            "learned": learned,
+            "unlearned": unlearned,
+            "total_reviews": total_reviews,
+            "session_count": session_count,
+            "avg_session_reviews": avg_session,
+        }
+
     def get_cached_subjects(self) -> dict[int, tuple[str, int]]:
         rows = self.conn.execute(
             "SELECT id, characters, level FROM subject_cache"

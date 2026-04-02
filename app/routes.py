@@ -218,3 +218,8 @@ async def session_review(
 @router.get("/session/done", response_class=HTMLResponse)
 async def session_done(request: Request):
     return templates.TemplateResponse(request, "done.html", {})
+
+
+@router.get("/stats", response_class=HTMLResponse)
+async def stats(request: Request, db: Database = Depends(get_db)):
+    return templates.TemplateResponse(request, "stats.html", db.get_stats())

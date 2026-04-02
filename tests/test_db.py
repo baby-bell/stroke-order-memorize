@@ -235,6 +235,67 @@ class TestGetNewKanjiOrder:
         ), "get_new_kanji returned identical order every time"
 
 
+class TestGetStats:
+    def test_empty_db(self, fresh_db):
+        stats = fresh_db.get_stats()
+        assert stats["learned"] == 0
+        assert stats["unlearned"] == 0
+        assert stats["total_reviews"] == 0
+        assert stats["session_count"] == 0
+        assert stats["avg_session_reviews"] == 0
+
+    def test_counts_learned_and_unlearned(self, fresh_db):
+        now = now_utc()
+        for k in ("一", "二", "三"):
+            fresh_db.upsert_character(k, 1, now)
+            fresh_db.insert_card_if_new(k)
+        # Mark two as reviewed
+        fresh_db.conn.execute(
+            "UPDATE cards SET last_review = ? WHERE kanji IN ('一', '二')",
+            (now.isoformat(),),
+        )
+        fresh_db.conn.commit()
+        stats = fresh_db.get_stats()
+        assert stats["learned"] == 2
+        assert stats["unlearned"] == 1
+
+    def test_total_reviews(self, fresh_db):
+        now = now_utc()
+        fresh_db.upsert_character("一", 1, now)
+        fresh_db.insert_review("一", 3, now)
+        fresh_db.insert_review("一", 4, now)
+        stats = fresh_db.get_stats()
+        assert stats["total_reviews"] == 2
+
+    def test_single_session(self, fresh_db):
+        """Reviews within 30 min count as one session."""
+        fresh_db.upsert_character("一", 1, now_utc())
+        t1 = datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+        t2 = datetime(2025, 1, 1, 10, 10, 0, tzinfo=timezone.utc)
+        t3 = datetime(2025, 1, 1, 10, 20, 0, tzinfo=timezone.utc)
+        fresh_db.insert_review("一", 3, t1)
+        fresh_db.insert_review("一", 4, t2)
+        fresh_db.insert_review("一", 3, t3)
+        stats = fresh_db.get_stats()
+        assert stats["session_count"] == 1
+        assert stats["avg_session_reviews"] == 3
+
+    def test_multiple_sessions(self, fresh_db):
+        """A >30 min gap splits reviews into separate sessions."""
+        fresh_db.upsert_character("一", 1, now_utc())
+        # Session 1: 2 reviews
+        t1 = datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+        t2 = datetime(2025, 1, 1, 10, 5, 0, tzinfo=timezone.utc)
+        # Session 2: 1 review (>30 min gap)
+        t3 = datetime(2025, 1, 1, 11, 0, 0, tzinfo=timezone.utc)
+        fresh_db.insert_review("一", 3, t1)
+        fresh_db.insert_review("一", 4, t2)
+        fresh_db.insert_review("一", 3, t3)
+        stats = fresh_db.get_stats()
+        assert stats["session_count"] == 2
+        assert stats["avg_session_reviews"] == 1.5
+
+
 class TestSubjectCache:
     def test_upsert_and_get_cached_subjects(self, fresh_db):
         subjects = {440: ("一", 1), 441: ("二", 1), 500: ("山", 3)}
