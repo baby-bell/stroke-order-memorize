@@ -56,24 +56,24 @@ class Database:
         self.conn.close()
 
     def upsert_character(self, kanji: str, wk_level: int, synced_at: datetime) -> None:
-        self.conn.execute(
-            """
-            INSERT INTO characters (kanji, wk_level, synced_at)
-            VALUES (?, ?, ?)
-            ON CONFLICT(kanji) DO UPDATE SET
-                wk_level  = excluded.wk_level,
-                synced_at = excluded.synced_at
-            """,
-            (kanji, wk_level, synced_at.isoformat()),
-        )
-        self.conn.commit()
+        with self.conn:
+            self.conn.execute(
+                """
+                INSERT INTO characters (kanji, wk_level, synced_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(kanji) DO UPDATE SET
+                    wk_level  = excluded.wk_level,
+                    synced_at = excluded.synced_at
+                """,
+                (kanji, wk_level, synced_at.isoformat()),
+            )
 
     def insert_card_if_new(self, kanji: str) -> None:
-        self.conn.execute(
-            "INSERT OR IGNORE INTO cards (kanji) VALUES (?)",
-            (kanji,),
-        )
-        self.conn.commit()
+        with self.conn:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO cards (kanji) VALUES (?)",
+                (kanji,),
+            )
 
     def get_review_kanji(self, now: datetime) -> list[str]:
         """Return kanji with due <= now that have been reviewed before."""
@@ -142,32 +142,32 @@ class Database:
         )
 
     def update_card(self, kanji: str, card: Card) -> None:
-        cursor = self.conn.execute(
-            """
-            UPDATE cards
-            SET state = ?, step = ?, stability = ?, difficulty = ?, due = ?, last_review = ?
-            WHERE kanji = ?
-            """,
-            (
-                card.state.value,
-                card.step,
-                card.stability,
-                card.difficulty,
-                card.due.isoformat(),
-                card.last_review.isoformat() if card.last_review else None,
-                kanji,
-            ),
-        )
-        if cursor.rowcount == 0:
-            raise ValueError(f"No card found for kanji: {kanji!r}")
-        self.conn.commit()
+        with self.conn:
+            cursor = self.conn.execute(
+                """
+                UPDATE cards
+                SET state = ?, step = ?, stability = ?, difficulty = ?, due = ?, last_review = ?
+                WHERE kanji = ?
+                """,
+                (
+                    card.state.value,
+                    card.step,
+                    card.stability,
+                    card.difficulty,
+                    card.due.isoformat(),
+                    card.last_review.isoformat() if card.last_review else None,
+                    kanji,
+                ),
+            )
+            if cursor.rowcount == 0:
+                raise ValueError(f"No card found for kanji: {kanji!r}")
 
     def insert_review(self, kanji: str, rating: int, reviewed_at: datetime) -> None:
-        self.conn.execute(
-            "INSERT INTO reviews (kanji, rating, reviewed_at) VALUES (?, ?, ?)",
-            (kanji, rating, reviewed_at.isoformat()),
-        )
-        self.conn.commit()
+        with self.conn:
+            self.conn.execute(
+                "INSERT INTO reviews (kanji, rating, reviewed_at) VALUES (?, ?, ?)",
+                (kanji, rating, reviewed_at.isoformat()),
+            )
 
     def get_sync_meta(self, endpoint: str) -> SyncMeta | None:
         row = self.conn.execute(
@@ -189,18 +189,18 @@ class Database:
         etag: str | None = None,
         last_modified: str | None = None,
     ) -> None:
-        self.conn.execute(
-            """
-            INSERT INTO sync_meta (endpoint, synced_at, etag, last_modified)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(endpoint) DO UPDATE SET
-                synced_at     = excluded.synced_at,
-                etag          = excluded.etag,
-                last_modified = excluded.last_modified
-            """,
-            (endpoint, synced_at.isoformat(), etag, last_modified),
-        )
-        self.conn.commit()
+        with self.conn:
+            self.conn.execute(
+                """
+                INSERT INTO sync_meta (endpoint, synced_at, etag, last_modified)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(endpoint) DO UPDATE SET
+                    synced_at     = excluded.synced_at,
+                    etag          = excluded.etag,
+                    last_modified = excluded.last_modified
+                """,
+                (endpoint, synced_at.isoformat(), etag, last_modified),
+            )
 
     def get_cached_subjects(self) -> dict[int, tuple[str, int]]:
         rows = self.conn.execute(
@@ -209,14 +209,14 @@ class Database:
         return {row["id"]: (row["characters"], row["level"]) for row in rows}
 
     def upsert_cached_subjects(self, subjects: dict[int, tuple[str, int]]) -> None:
-        self.conn.executemany(
-            """
-            INSERT INTO subject_cache (id, characters, level)
-            VALUES (?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                characters = excluded.characters,
-                level      = excluded.level
-            """,
-            [(sid, chars, level) for sid, (chars, level) in subjects.items()],
-        )
-        self.conn.commit()
+        with self.conn:
+            self.conn.executemany(
+                """
+                INSERT INTO subject_cache (id, characters, level)
+                VALUES (?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    characters = excluded.characters,
+                    level      = excluded.level
+                """,
+                [(sid, chars, level) for sid, (chars, level) in subjects.items()],
+            )
