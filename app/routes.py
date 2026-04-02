@@ -146,6 +146,7 @@ async def session_card(
 ):
     queue = _queue(session_id)
     if not queue:
+        _sessions.pop(session_id, None)
         return RedirectResponse("/session/done", status_code=303)
     return templates.TemplateResponse(request, "card.html", {"kanji": queue[0]})
 
@@ -171,6 +172,7 @@ async def session_review(
 ):
     queue = _queue(session_id)
     if not queue:
+        _sessions.pop(session_id, None)
         resp = HTMLResponse("")
         resp.headers["HX-Redirect"] = "/session/done"
         return resp
@@ -203,6 +205,7 @@ async def session_review(
             random.shuffle(newly_due)
             queue.extend(newly_due)
         else:
+            _sessions.pop(session_id, None)
             resp = HTMLResponse("")
             resp.headers["HX-Redirect"] = "/session/done"
             return resp
