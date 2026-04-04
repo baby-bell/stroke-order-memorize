@@ -12,6 +12,8 @@ Store settings in a generic SQLite `settings` table (key/value text pairs). Prov
 
 ### Schema addition
 
+Append to the `_SCHEMA` string in `db.py`:
+
 ```sql
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT NOT NULL PRIMARY KEY,
@@ -35,20 +37,28 @@ Values are always stored as text. Callers handle type conversion (e.g., `int(db.
 
 ### Removals
 
-- Delete `_NEW_CARDS_PER_DAY` module-level constant and its `os.getenv` call.
+- Delete `_NEW_CARDS_PER_DAY` module-level constant and its `os.getenv` call. (The `os` import stays — it's still used for `WANIKANI_API_KEY`.)
 
 ### Modified call sites
+
+Add a module-level default constant:
+
+```python
+_DEFAULT_NEW_CARDS_PER_DAY = "20"
+```
 
 Replace `daily_limit=_NEW_CARDS_PER_DAY` in `home`, `start_session`, and `session_review` with:
 
 ```python
-daily_limit=int(db.get_setting("new_cards_per_day", "20"))
+daily_limit=int(db.get_setting("new_cards_per_day", _DEFAULT_NEW_CARDS_PER_DAY))
 ```
+
+The same constant is used as the pre-fill value in `GET /settings` when no value has been stored yet.
 
 ### New routes
 
-- `GET /settings` — renders `settings.html` with current values from DB.
-- `POST /settings` — accepts form data, calls `db.set_setting(...)` for each field, redirects to `/settings`.
+- `GET /settings` — renders `settings.html` with current values from DB (using `get_setting` with defaults).
+- `POST /settings` — accepts form data, validates each value server-side (e.g., `new_cards_per_day` must be a non-negative integer), calls `db.set_setting(...)` for valid fields, redirects to `/settings`. Invalid input re-renders the form with an error message.
 
 ## Template
 
@@ -77,4 +87,6 @@ New `app/templates/settings.html` extending `base.html`:
 
 - `GET /settings` renders the current `new_cards_per_day` value.
 - `POST /settings` updates the value and redirects to `/settings`.
+- `POST /settings` with invalid input (non-numeric, negative) re-renders with error.
 - Home and session routes respect the DB-stored setting.
+- Migrate existing `test_home_shows_new_count` from `monkeypatch.setattr(routes, "_NEW_CARDS_PER_DAY", 1)` to `db.set_setting("new_cards_per_day", "1")`.
