@@ -25,7 +25,7 @@ router = APIRouter()
 
 _sessions: dict[str, list[str]] = {}
 
-_NEW_CARDS_PER_DAY: int = int(os.getenv("NEW_CARDS_PER_DAY", "20"))
+_DEFAULT_NEW_CARDS_PER_DAY = "20"
 
 
 def get_db(request: Request) -> Database:
@@ -51,7 +51,7 @@ async def home(request: Request, db: Database = Depends(get_db)):
         review_count=db.count_review_due(now),
         new_available=db.count_new_due(now),
         new_today_count=db.count_new_introduced_today(_today_start()),
-        daily_limit=_NEW_CARDS_PER_DAY,
+        daily_limit=int(db.get_setting("new_cards_per_day", _DEFAULT_NEW_CARDS_PER_DAY)),
     )
     return templates.TemplateResponse(
         request, "home.html", {"due_count": total, "new_count": new}
@@ -127,7 +127,7 @@ async def start_session(
         review_kanji=db.get_review_kanji(now),
         new_kanji=db.get_new_kanji(now),
         new_today_count=db.count_new_introduced_today(_today_start()),
-        daily_limit=_NEW_CARDS_PER_DAY,
+        daily_limit=int(db.get_setting("new_cards_per_day", _DEFAULT_NEW_CARDS_PER_DAY)),
     )
     if not due:
         return RedirectResponse("/session/done", status_code=303)
@@ -199,7 +199,7 @@ async def session_review(
             review_kanji=db.get_review_kanji(now),
             new_kanji=db.get_new_kanji(now),
             new_today_count=db.count_new_introduced_today(_today_start()),
-            daily_limit=_NEW_CARDS_PER_DAY,
+            daily_limit=int(db.get_setting("new_cards_per_day", _DEFAULT_NEW_CARDS_PER_DAY)),
         )
         if newly_due:
             random.shuffle(newly_due)
