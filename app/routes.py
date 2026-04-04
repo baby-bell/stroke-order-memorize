@@ -223,3 +223,41 @@ async def session_done(request: Request):
 @router.get("/stats", response_class=HTMLResponse)
 async def stats(request: Request, db: Database = Depends(get_db)):
     return templates.TemplateResponse(request, "stats.html", db.get_stats())
+
+
+@router.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request, db: Database = Depends(get_db)):
+    return templates.TemplateResponse(
+        request,
+        "settings.html",
+        {
+            "new_cards_per_day": db.get_setting(
+                "new_cards_per_day", _DEFAULT_NEW_CARDS_PER_DAY
+            ),
+        },
+    )
+
+
+@router.post("/settings", response_class=HTMLResponse)
+async def settings_update(
+    request: Request,
+    new_cards_per_day: Annotated[str, Form()],
+    db: Database = Depends(get_db),
+):
+    try:
+        value = int(new_cards_per_day)
+        if value < 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        return templates.TemplateResponse(
+            request,
+            "settings.html",
+            {
+                "new_cards_per_day": db.get_setting(
+                    "new_cards_per_day", _DEFAULT_NEW_CARDS_PER_DAY
+                ),
+                "error": "New cards per day must be a non-negative integer.",
+            },
+        )
+    db.set_setting("new_cards_per_day", str(value))
+    return RedirectResponse("/settings", status_code=303)

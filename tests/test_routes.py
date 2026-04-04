@@ -236,6 +236,61 @@ _ASSIGNMENTS_PAGE = {
 BASE = "https://api.wanikani.com"
 
 
+@pytest.mark.asyncio
+async def test_settings_get_returns_200(client):
+    resp = await client.get("/settings")
+    assert resp.status_code == 200
+    assert "20" in resp.text  # default value
+
+
+@pytest.mark.asyncio
+async def test_settings_post_updates_value(client, fresh_db):
+    resp = await client.post(
+        "/settings",
+        data={"new_cards_per_day": "5"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"].endswith("/settings")
+    assert fresh_db.get_setting("new_cards_per_day", "20") == "5"
+
+
+@pytest.mark.asyncio
+async def test_settings_post_rejects_negative(client, fresh_db):
+    resp = await client.post(
+        "/settings",
+        data={"new_cards_per_day": "-1"},
+    )
+    assert resp.status_code == 200  # re-renders form
+    assert "error" in resp.text.lower()
+    # Value should not have changed
+    assert fresh_db.get_setting("new_cards_per_day", "20") == "20"
+
+
+@pytest.mark.asyncio
+async def test_settings_post_rejects_non_numeric(client, fresh_db):
+    resp = await client.post(
+        "/settings",
+        data={"new_cards_per_day": "abc"},
+    )
+    assert resp.status_code == 200
+    assert "error" in resp.text.lower()
+    assert fresh_db.get_setting("new_cards_per_day", "20") == "20"
+
+
+@pytest.mark.asyncio
+async def test_session_respects_db_setting(client, fresh_db):
+    """start_session uses the DB-stored new_cards_per_day setting."""
+    fresh_db.set_setting("new_cards_per_day", "0")
+    for kanji in ["一", "二"]:
+        fresh_db.upsert_character(kanji, 1, now_utc())
+        fresh_db.insert_card_if_new(kanji)
+    # With 0 new cards allowed and no review cards, session should redirect to done
+    resp = await client.get("/session", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"].endswith("/session/done")
+
+
 @respx.mock
 @pytest.mark.asyncio
 async def test_sync_creates_characters_and_cards(client, fresh_db, monkeypatch):
