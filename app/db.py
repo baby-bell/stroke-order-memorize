@@ -41,6 +41,11 @@ CREATE TABLE IF NOT EXISTS subject_cache (
     characters  TEXT NOT NULL,
     level       INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT NOT NULL PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 
@@ -253,6 +258,22 @@ class Database:
             "SELECT id, characters, level FROM subject_cache"
         ).fetchall()
         return {row["id"]: (row["characters"], row["level"]) for row in rows}
+
+    def get_setting(self, key: str, default: str) -> str:
+        row = self.conn.execute(
+            "SELECT value FROM settings WHERE key = ?", (key,)
+        ).fetchone()
+        return row["value"] if row else default
+
+    def set_setting(self, key: str, value: str) -> None:
+        with self.conn:
+            self.conn.execute(
+                """
+                INSERT INTO settings (key, value) VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """,
+                (key, value),
+            )
 
     def upsert_cached_subjects(self, subjects: dict[int, tuple[str, int]]) -> None:
         with self.conn:

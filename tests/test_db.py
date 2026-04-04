@@ -21,6 +21,7 @@ class TestDatabaseClass:
             "reviews",
             "sync_meta",
             "subject_cache",
+            "settings",
         }
         database.close()
 
@@ -37,6 +38,7 @@ class TestSchema:
             "reviews",
             "sync_meta",
             "subject_cache",
+            "settings",
         }
 
 
@@ -314,3 +316,17 @@ class TestSubjectCache:
         fresh_db.upsert_cached_subjects({441: ("二", 1)})
         result = fresh_db.get_cached_subjects()
         assert 440 in result and 441 in result
+
+
+class TestSettings:
+    def test_get_setting_returns_default_when_unset(self, fresh_db):
+        assert fresh_db.get_setting("new_cards_per_day", "20") == "20"
+
+    def test_get_setting_returns_stored_value(self, fresh_db):
+        fresh_db.set_setting("new_cards_per_day", "10")
+        assert fresh_db.get_setting("new_cards_per_day", "20") == "10"
+
+    def test_set_setting_upserts(self, fresh_db):
+        fresh_db.set_setting("new_cards_per_day", "10")
+        fresh_db.set_setting("new_cards_per_day", "5")
+        assert fresh_db.get_setting("new_cards_per_day", "20") == "5"
